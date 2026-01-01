@@ -1,102 +1,23 @@
 <html>
   <head>
-    <script>
-      // Test logging helper
-      function log(message) {
-        const logEl = document.getElementById('test-log');
-        if (logEl) {
-          const time = new Date().toLocaleTimeString();
-          logEl.setHTML(logEl.innerHTML + `<div>[${time}] ${message}</div>`);
-          logEl.scrollTop = logEl.scrollHeight;
-        }
-        console.log(message);
-      }
-
-      // Test: addClass and removeClass
-      function sayHi(event, el) {
-        el.addClass('clicked');
-        log("✓ addClass('clicked') - Button clicked!");
-        setTimeout(() => {
-          el.removeClass('clicked');
-          log("✓ removeClass('clicked') - Class removed after 1s");
-        }, 1000);
-      }
-
-      // Test: setText
-      function updateValue(event, el) {
-        const value = el.value;
-        const displayEl = document.getElementById('value-display');
-        if (displayEl) {
-          displayEl.setText(`Current value: "${value}"`);
-          log(`✓ setText() - Input value: "${value}"`);
-        }
-      }
-
-      // Test: hide
-      function submitForm(event, el) {
-        event.preventDefault();
-        log('✓ hide() - Form submitted, hiding form...');
-        el.hide();
-        setTimeout(() => {
-          el.show();
-          log('✓ show() - Form shown again after 2s');
-        }, 2000);
-      }
-
-      // Test: show/hide toggle
-      function toggleVisibility(event, el) {
-        const targetEl = document.getElementById('toggle-target');
-        if (targetEl) {
-          if (targetEl.style.display === 'none') {
-            targetEl.show();
-            log('✓ show() - Toggle target is now visible');
-          } else {
-            targetEl.hide();
-            log('✓ hide() - Toggle target is now hidden');
-          }
-        }
-      }
-
-      // Test: setHTML
-      function updateHTML(event, el) {
-        const htmlEl = document.getElementById('html-display');
-        if (htmlEl) {
-          const count = parseInt(htmlEl.getAttribute('data-count') || '0') + 1;
-          htmlEl.setAttribute('data-count', count);
-          htmlEl.setHTML(
-            `Updated <strong>${count}</strong> time${count !== 1 ? 's' : ''} with <em>setHTML()</em>`
-          );
-          log(`✓ setHTML() - Updated HTML content (count: ${count})`);
-        }
-      }
-
-      // Test: addClass/removeClass toggle
-      function toggleClass(event, el) {
-        const targetEl = document.getElementById('class-target');
-        if (targetEl) {
-          if (targetEl.classList.contains('highlight')) {
-            targetEl.removeClass('highlight');
-            log("✓ removeClass('highlight') - Removed highlight class");
-          } else {
-            targetEl.addClass('highlight');
-            log("✓ addClass('highlight') - Added highlight class");
-          }
-        }
-      }
-
-      // Initialize logging
-      function initLog() {
-        log('🚀 Phase 2 Event System & DOM Helpers Test Suite');
-        log(
-          'All DOM helper methods are ready: show(), hide(), addClass(), removeClass(), setText(), setHTML()'
-        );
-      }
-    </script>
+ <title>
+ Zenith
+ </title> 
   </head>
-
   <body onload="initLog">
     <div class="container">
       <h1 class="title">Zenith Phase 2 Tests</h1>
+
+      <div class="test-section">
+        <h2>Phase 2: Reactive Text Bindings</h2>
+
+        <div class="test-group">
+          <h3>Count: { count }</h3>
+          <button type="button" onclick="incrementCount">Increment</button>
+          <button type="button" onclick="decrementCount">Decrement</button>
+          <span class="test-desc">Text binding updates automatically when count changes</span>
+        </div>
+      </div>
 
       <div class="test-section">
         <h2>Event Handlers & DOM Helpers</h2>
@@ -302,5 +223,108 @@
         font-weight: 600;
       }
     </style>
+<script>
+      // Test logging helper
+      function log(message) {
+        const logEl = document.getElementById('test-log');
+        if (logEl) {
+          const time = new Date().toLocaleTimeString();
+          logEl.setHTML(logEl.innerHTML + `<div>[${time}] ${message}</div>`);
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        console.log(message);
+      }
+
+      // Test: addClass and removeClass
+      function sayHi(event, el) {
+        el.addClass('clicked');
+        log("✓ addClass('clicked') - Button clicked!");
+        setTimeout(() => {
+          el.removeClass('clicked');
+          log("✓ removeClass('clicked') - Class removed after 1s");
+        }, 1000);
+      }
+
+      // Test: setText
+      function updateValue(event, el) {
+        const value = el.value;
+        const displayEl = document.getElementById('value-display');
+        if (displayEl) {
+          displayEl.setText(`Current value: "${value}"`);
+          log(`✓ setText() - Input value: "${value}"`);
+        }
+      }
+
+      // Test: hide
+      function submitForm(event, el) {
+        event.preventDefault();
+        log('✓ hide() - Form submitted, hiding form...');
+        el.hide();
+        setTimeout(() => {
+          el.show();
+          log('✓ show() - Form shown again after 2s');
+        }, 2000);
+      }
+
+      // Test: show/hide toggle
+      function toggleVisibility(event, el) {
+        const targetEl = document.getElementById('toggle-target');
+        if (targetEl) {
+          if (targetEl.style.display === 'none') {
+            targetEl.show();
+            log('✓ show() - Toggle target is now visible');
+          } else {
+            targetEl.hide();
+            log('✓ hide() - Toggle target is now hidden');
+          }
+        }
+      }
+
+      // Test: setHTML
+      function updateHTML(event, el) {
+        const htmlEl = document.getElementById('html-display');
+        if (htmlEl) {
+          const count = parseInt(htmlEl.getAttribute('data-count') || '0') + 1;
+          htmlEl.setAttribute('data-count', count);
+          htmlEl.setHTML(
+            `Updated <strong>${count}</strong> time${count !== 1 ? 's' : ''} with <em>setHTML()</em>`
+          );
+          log(`✓ setHTML() - Updated HTML content (count: ${count})`);
+        }
+      }
+
+      // Test: addClass/removeClass toggle
+      function toggleClass(event, el) {
+        const targetEl = document.getElementById('class-target');
+        if (targetEl) {
+          if (targetEl.classList.contains('highlight')) {
+            targetEl.removeClass('highlight');
+            log("✓ removeClass('highlight') - Removed highlight class");
+          } else {
+            targetEl.addClass('highlight');
+            log("✓ addClass('highlight') - Added highlight class");
+          }
+        }
+      }
+
+      // Phase 2: Reactive text bindings test handlers
+      function incrementCount(event, el) {
+        count++;
+      }
+
+      function decrementCount(event, el) {
+        count--;
+      }
+
+      // Initialize logging
+      function initLog() {
+        log('🚀 Phase 2 Event System & DOM Helpers Test Suite');
+        log(
+          'All DOM helper methods are ready: show(), hide(), addClass(), removeClass(), setText(), setHTML()'
+        );
+      }
+
+      state count = 0
+    </script>
   </body>
 </html>
