@@ -178,6 +178,50 @@ function transformTextBindings(
   };
 }
 
+// Transform :class and :value attributes to data-zen-* attributes
+// Returns: { transformedHtml, bindings } where bindings contains attribute binding info
+function transformAttributeBindings(html: string): { transformedHtml: string; bindings: Array<{ type: 'class' | 'value'; expression: string }> } {
+  const document = parse5.parse(html);
+  const bindings: Array<{ type: 'class' | 'value'; expression: string }> = [];
+  
+  function walk(node: any) {
+    // Transform attributes on element nodes
+    if (node.attrs && Array.isArray(node.attrs)) {
+      node.attrs = node.attrs.map((attr: any) => {
+        const attrName = attr.name;
+        // Check if attribute is :class or :value (colon-prefixed)
+        if (attrName === ':class' || attrName === ':value') {
+          const bindingType = attrName.slice(1) as 'class' | 'value'; // Remove ":" prefix
+          const expression = attr.value.trim(); // Store the quoted expression
+          
+          // Track this binding
+          bindings.push({ type: bindingType, expression });
+          
+          // Transform to data-zen-* attribute
+          return {
+            name: `data-zen-${bindingType}`,
+            value: expression // Store the expression string
+          };
+        }
+        return attr;
+      });
+    }
+    
+    // Recursively process child nodes
+    if (node.childNodes) {
+      node.childNodes.forEach(walk);
+    }
+  }
+  
+  walk(document);
+  
+  // Serialize back to HTML string
+  return {
+    transformedHtml: parse5.serialize(document),
+    bindings
+  };
+}
+
 // Strip script and style tags from HTML since they're extracted to separate files
 function stripScriptAndStyleTags(html: string): string {
   // Remove script tags (including content)
@@ -200,9 +244,12 @@ export function splitZen(file: ZenFile) {
   // First transform event attributes
   const { transformedHtml: htmlAfterEvents, eventTypes } = transformEventAttributes(file.html);
 
+  // Then transform attribute bindings (:class, :value)
+  const { transformedHtml: htmlAfterAttributeBindings, bindings: attributeBindings } = transformAttributeBindings(htmlAfterEvents);
+
   // Then transform text bindings (this will validate against declared states)
   const { transformedHtml: htmlAfterBindings, stateBindings } = transformTextBindings(
-    htmlAfterEvents,
+    htmlAfterAttributeBindings,
     new Set(declaredStates.keys())
   );
 
@@ -218,6 +265,7 @@ export function splitZen(file: ZenFile) {
     styles: file.styles.map(style => style.content),
     eventTypes: Array.from(eventTypes).sort(), // Return sorted array of event types
     stateBindings: Array.from(stateBindings.values()), // Return array of state bindings
-    stateDeclarations: declaredStates // Return map of state declarations
+    stateDeclarations: declaredStates, // Return map of state declarations
+    attributeBindings // Return attribute bindings for :class and :value
   }
 }

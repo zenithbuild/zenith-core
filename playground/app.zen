@@ -324,7 +324,7 @@
         );
       }
 
-      state count = 0
+      state count = 0;
     </script>
   </body>
 </html>
