@@ -17,10 +17,18 @@
    ```ts
    bun install
    ```
-3. **Run the development server**
+3. **Build the application** (required first)
    ```ts
-   bun dev
+   bun run build
    ```
+   This compiles `.zen` files from `app/pages/` into `app/dist/`.
+
+4. **Run the development server**
+   ```ts
+   bun run dev
+
+> **Important**: Use `bun run <script>` to execute npm scripts from package.json. The command `bun build` (without `run`) invokes Bun's built-in bundler, which won't specify our entrypoints by default.
+
 ## 🌿 Branching Strategy
 ### Option 1: Issue-Driven Development (Preferred)
 

@@ -38,15 +38,16 @@ If yes — move it out of runtime.
 
 Before submitting a PR:
 
-1. **Run the dev server** and verify your changes work:
+1. **Build the application** to compile your changes:
    ```bash
-   bun dev
+   bun run build
    ```
 
-2. **Build the project** to ensure no build errors:
+2. **Run the dev server** and verify your changes work:
    ```bash
-   bun build
+   bun run dev
    ```
+   Visit `http://localhost:3000` to test.
 
 3. **Format your code**:
    ```bash
@@ -57,3 +58,5 @@ Before submitting a PR:
    ```bash
    bun run format:check
    ```
+
+> **Note**: Use `bun run <script>` for npm scripts. Plain `bun build` invokes Bun's bundler, not the project build script.
