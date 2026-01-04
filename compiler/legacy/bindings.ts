@@ -180,7 +180,13 @@ export function generateAttributeBindingRuntime(bindings: Array<{ type: 'class' 
       // Note: 'with' is deprecated but necessary for this use case in non-strict mode
       return function(state) {
         try {
-          // Merge state with window to access instance-scoped state variables
+          // Use window.__zen_eval_expr for consistent expression evaluation
+          // This handles window properties (state variables) correctly
+          if (typeof window !== 'undefined' && window.__zen_eval_expr) {
+            return window.__zen_eval_expr(evalExpression);
+          }
+          
+          // Fallback: Merge state with window to access instance-scoped state variables
           // This allows expressions to reference both global state and instance-scoped state
           // Copy window properties that look like instance-scoped state to the merged context
           const mergedContext = Object.assign({}, state);

@@ -87,14 +87,19 @@ function handleClick(event, el) {
   
   // Only navigate if path is different (idempotent navigation)
   if (normalizedHref !== currentPath) {
+    console.log('[ZenLink] Navigating to:', linkHref)
     // Navigate using SPA router
     if (window.__zenith_router && window.__zenith_router.navigate) {
+      console.log('[ZenLink] Using router.navigate')
       window.__zenith_router.navigate(linkHref)
     } else {
+      console.log('[ZenLink] Using fallback history API')
       // Fallback to history API
       window.history.pushState(null, '', linkHref)
       window.dispatchEvent(new PopStateEvent('popstate'))
     }
+  } else {
+    console.log('[ZenLink] Already on route:', linkHref, '- skipping navigation')
   }
 }
 
@@ -108,19 +113,34 @@ function handleMouseEnter(event, el) {
   }
   
   const shouldPreload = typeof preload !== 'undefined' ? preload : false
-  if (!shouldPreload) return
+  console.log('[ZenLink] handleMouseEnter called, preload:', shouldPreload)
+  if (!shouldPreload) {
+    console.log('[ZenLink] Preload disabled, returning early')
+    return
+  }
   
   const linkHref = el ? el.getAttribute('href') : (typeof href !== 'undefined' ? href : null)
-  if (!linkHref) return
+  if (!linkHref) {
+    return
+  }
   
   // Skip external URLs
   if (linkHref.startsWith('http://') || linkHref.startsWith('https://') || linkHref.startsWith('//')) {
     return
   }
   
+  console.log('[ZenLink] Prefetch triggered on hover:', linkHref)
+  
   // Prefetch the route
   if (window.__zenith_router && window.__zenith_router.prefetch) {
-    window.__zenith_router.prefetch(linkHref)
+    console.log('[ZenLink] Calling router.prefetch for:', linkHref)
+    window.__zenith_router.prefetch(linkHref).then(() => {
+      console.log('[ZenLink] Prefetch complete for:', linkHref)
+    }).catch((error) => {
+      console.warn('[ZenLink] Prefetch failed for:', linkHref, error)
+    })
+  } else {
+    console.warn('[ZenLink] Router prefetch not available')
   }
 }
 

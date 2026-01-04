@@ -2,6 +2,16 @@ import type { ZenFile, StateBinding, ScriptBlock } from "./types"
 import * as parse5 from "parse5"
 import { extractStateDeclarations, extractStateDeclarationsWithLocation, transformStateDeclarations, type StateDeclarationInfo } from "./parse"
 import { extractEventHandlers, detectStateMutations, validateStateMutations, type InlineHandlerInfo } from "./mutation"
+import { 
+  extractExpressionBlocks, 
+  transformExpressionBlocks, 
+  generateExpressionRuntime,
+  generateExpressionRuntimeHelpers,
+  extractAttributeExpressions,
+  generateAttributeExpressionRuntime,
+  type ExpressionBlock,
+  type AttributeExpressionBinding
+} from "./expression"
 
 // ============================================
 // ES6 Import Transform & Auto-Import System
@@ -523,9 +533,19 @@ export function splitZen(file: ZenFile) {
   // Then transform attribute bindings (:class, :value)
   const { transformedHtml: htmlAfterAttributeBindings, bindings } = transformAttributeBindings(htmlAfterEvents, file.scripts);
 
+  // Extract and transform attribute expressions (attr={expression})
+  const { transformedHtml: htmlAfterAttrExpressions, bindings: attrExprBindings } = extractAttributeExpressions(
+    htmlAfterAttributeBindings,
+    new Set(stateMap.keys())
+  );
+
+  // Extract and transform dynamic expression blocks ({ condition && <el> }, { a ? b : c }, { arr.map(...) })
+  const expressionBlocks = extractExpressionBlocks(htmlAfterAttrExpressions, new Set(stateMap.keys()));
+  const htmlAfterExpressions = transformExpressionBlocks(htmlAfterAttrExpressions, expressionBlocks);
+
   // Then transform text bindings (this will validate against declared states)
   const { transformedHtml: htmlAfterBindings, stateBindings } = transformTextBindings(
-    htmlAfterAttributeBindings,
+    htmlAfterExpressions,
     new Set(stateMap.keys())
   );
 
@@ -581,6 +601,8 @@ export function splitZen(file: ZenFile) {
     eventTypes: Array.from(eventTypes).sort(), // Return sorted array of event types
     stateBindings: Array.from(stateBindings.values()), // Return array of state bindings
     stateDeclarations: stateMap, // Return map of state declarations (name -> value)
-    bindings // Return attribute bindings for :class and :value
+    bindings, // Return attribute bindings for :class and :value
+    expressionBlocks, // Return expression blocks for dynamic rendering
+    attrExprBindings // Return attribute expression bindings
   }
 }

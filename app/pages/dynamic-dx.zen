@@ -1,0 +1,712 @@
+<script>
+// ============================================
+// Dynamic HTML - Clean DX Demo
+// ============================================
+
+// User authentication state
+state user = null
+state isAuthenticated = false
+
+// Data
+state notifications = [
+  { id: 1, type: "info", message: "Welcome to Zenith!", read: false },
+  { id: 2, type: "success", message: "Profile updated", read: true },
+  { id: 3, type: "warning", message: "Storage almost full", read: false }
+]
+
+state todoItems = [
+  { id: 1, text: "Learn Zenith basics", completed: true },
+  { id: 2, text: "Build a component", completed: true },
+  { id: 3, text: "Master dynamic HTML", completed: false },
+  { id: 4, text: "Deploy to production", completed: false }
+]
+
+state todoCount = 4
+
+// Auth toggle - used in onclick handler
+function toggleAuth() {
+  if (isAuthenticated) {
+    user = null
+    isAuthenticated = false
+  } else {
+    user = { name: "Alex Developer", email: "alex@zenith.dev", avatar: "👨‍💻" }
+    isAuthenticated = true
+  }
+}
+
+// Mark all notifications as read - used in onclick handler
+function markAllRead() {
+  notifications = notifications.map(n => ({ ...n, read: true }))
+}
+
+// Clear all notifications - used in onclick handler
+function clearNotifications() {
+  notifications = []
+}
+
+// Toggle the first incomplete todo - used in onclick handler
+function toggleNextTodo() {
+  const firstIncomplete = todoItems.find(t => !t.completed)
+  if (firstIncomplete) {
+    todoItems = todoItems.map(item =>
+      item.id === firstIncomplete.id ? { ...item, completed: true } : item
+    )
+  }
+}
+
+// Add a demo todo - used in onclick handler
+function addTodo() {
+  todoCount = todoCount + 1
+  todoItems = [...todoItems, { id: todoCount, text: "New task #" + todoCount, completed: false }]
+}
+</script>
+
+<style>
+  /* Reset and full-page container */
+  .dx-page {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f172a;
+    color: #f1f5f9;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Header */
+  .dx-header {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+    padding: 60px 32px;
+    text-align: center;
+  }
+  
+  .dx-header h1 {
+    margin: 0 0 16px 0;
+    font-size: 3rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.02em;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+  
+  .dx-header .subtitle {
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+  }
+  
+  /* Main content */
+  .dx-main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+  
+  /* Feature Section */
+  .feature-section {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 32px;
+  }
+  
+  .feature-header {
+    margin-bottom: 24px;
+  }
+  
+  .feature-title {
+    font-size: 1.5rem;
+    margin: 0 0 8px 0;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+  }
+  
+  .feature-description {
+    color: #94a3b8;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+  }
+  
+  .demo-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .code-example {
+    background: #0a0e1a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  
+  .code-keyword {
+    color: #c084fc;
+  }
+  
+  .code-string {
+    color: #34d399;
+  }
+  
+  .code-comment {
+    color: #64748b;
+  }
+  
+  /* Auth Card */
+  .auth-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  
+  .auth-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .user-card, .guest-card {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    border-radius: 12px;
+    gap: 16px;
+  }
+  
+  .user-card {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+  }
+  
+  .user-card .avatar {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+  }
+  
+  .guest-card {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+  }
+  
+  .guest-card .avatar {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  }
+  
+  .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  
+  .auth-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  
+  .status-active-text {
+    color: #22c55e;
+  }
+  
+  .status-inactive-text {
+    color: #fbbf24;
+  }
+  
+  /* Buttons */
+  .btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 28px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .btn:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);
+  }
+  
+  .btn-outline {
+    background: transparent;
+    border: 2px solid #475569;
+    color: #e2e8f0;
+  }
+  
+  .btn-outline:hover {
+    background: #334155;
+    border-color: #3b82f6;
+    box-shadow: none;
+  }
+  
+  .btn-sm {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+  
+  /* Notification Item */
+  .notification-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .notification-item {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: all 0.2s ease;
+  }
+  
+  .notification-item:hover {
+    border-color: #3b82f6;
+  }
+  
+  .notification-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+  }
+  
+  .notification-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: rgba(59, 130, 246, 0.15);
+    flex-shrink: 0;
+  }
+  
+  .notification-text {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+  }
+  
+  .notification-unread {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3b82f6;
+    flex-shrink: 0;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #64748b;
+    font-size: 0.95rem;
+  }
+  
+  .notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .dismiss-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: none;
+    color: #f87171;
+    cursor: pointer;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  
+  .dismiss-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+  
+  /* Todo section */
+  .todo-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .todo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .todo-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: #0f172a;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    transition: all 0.2s ease;
+  }
+  
+  .todo-item:hover {
+    border-color: #3b82f6;
+  }
+  
+  .todo-completed {
+    opacity: 0.6;
+  }
+  
+  .todo-checkbox {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 2px solid #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #22c55e;
+    flex-shrink: 0;
+  }
+  
+  .todo-text {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    font-weight: 500;
+    flex: 1;
+  }
+  
+  .todo-stats {
+    display: flex;
+    gap: 32px;
+    padding-top: 20px;
+    border-top: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 0.9rem;
+  }
+  
+  .stat-value {
+    color: #3b82f6;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  
+  /* Navigation */
+  .nav-section {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding-top: 16px;
+  }
+  
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 32px;
+    background: #334155;
+    color: white;
+    text-decoration: none;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    border: 1px solid #475569;
+  }
+  
+  .nav-link:hover {
+    background: #475569;
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+</style>
+
+<Main title="Dynamic HTML - DX Demo">
+  <div class="dx-page">
+    <header class="dx-header">
+      <h1>✨ Clean DX Dynamic HTML</h1>
+      <p class="subtitle">DECLARATIVE • EXPRESSIVE • INTUITIVE</p>
+    </header>
+    
+    <main class="dx-main">
+      <!-- Conditional Rendering -->
+      <section class="feature-section">
+        <div class="feature-header">
+          <h2 class="feature-title">🔀 Conditional Rendering</h2>
+          <p class="feature-description">
+            Use <code style="background: rgba(59, 130, 246, 0.1); padding: 2px 6px; border-radius: 4px;">condition && element</code> to show or hide content based on state. 
+            Perfect for authentication states, feature flags, and dynamic UI elements.
+          </p>
+        </div>
+        
+        <div class="demo-card">
+          <div class="auth-card">
+            <div class="auth-info">
+              {isAuthenticated && user && (
+                <div class="user-card">
+                  <div class="avatar">{user.avatar}</div>
+                  <span class="auth-text">Welcome back, {user.name}!</span>
+                </div>
+              )}
+              {!isAuthenticated && (
+                <div class="guest-card">
+                  <div class="avatar">👤</div>
+                  <span class="auth-text">Welcome, Guest</span>
+                </div>
+              )}
+            </div>
+            
+            <button class="btn" onclick="toggleAuth">
+              {isAuthenticated ? "🚪 Logout" : "🔐 Login"}
+            </button>
+          </div>
+        </div>
+        
+        <div class="code-example">
+<span class="code-comment">// Conditional rendering with && operator</span>
+<span class="code-keyword">state</span> isAuthenticated = <span class="code-keyword">false</span>
+<span class="code-keyword">state</span> user = <span class="code-keyword">null</span>
+
+<span class="code-comment">// Show element only when condition is true</span>
+{isAuthenticated && user && (
+  &lt;div class="user-card"&gt;
+    Welcome back, {user.name}!
+  &lt;/div&gt;
+)}
+
+<span class="code-comment">// Negated condition for alternative content</span>
+{!isAuthenticated && (
+  &lt;div class="guest-card"&gt;
+    Welcome, Guest
+  &lt;/div&gt;
+)}
+        </div>
+      </section>
+      
+      <!-- Ternary Expressions -->
+      <section class="feature-section">
+        <div class="feature-header">
+          <h2 class="feature-title">❓ Inline Ternary Expressions</h2>
+          <p class="feature-description">
+            Use <code style="background: rgba(59, 130, 246, 0.1); padding: 2px 6px; border-radius: 4px;">condition ? A : B</code> for concise inline conditional content. 
+            Great for dynamic button text, status indicators, and toggleable values.
+          </p>
+        </div>
+        
+        <div class="demo-card">
+          <div class="auth-card">
+            <div class="auth-info">
+              <span class="auth-text">Status:</span>
+              <span class="auth-text" :class="isAuthenticated ? 'status-active-text' : 'status-inactive-text'">
+                {isAuthenticated ? "✓ Authenticated" : "✗ Not Authenticated"}
+              </span>
+            </div>
+            
+            <button class="btn" onclick="toggleAuth">
+              {isAuthenticated ? "🚪 Logout" : "🔐 Login"}
+            </button>
+          </div>
+        </div>
+        
+        <div class="code-example">
+<span class="code-comment">// Ternary expression for dynamic content</span>
+<span class="code-keyword">state</span> isAuthenticated = <span class="code-keyword">false</span>
+
+&lt;button&gt;
+  {isAuthenticated ? <span class="code-string">"Logout"</span> : <span class="code-string">"Login"</span>}
+&lt;/button&gt;
+
+<span class="code-comment">// Ternary in attributes using :class binding</span>
+&lt;span :class="isAuthenticated ? 'status-active' : 'status-inactive'"&gt;
+  {isAuthenticated ? <span class="code-string">"Authenticated"</span> : <span class="code-string">"Not Authenticated"</span>}
+&lt;/span&gt;
+        </div>
+      </section>
+      
+      <!-- Array Mapping -->
+      <section class="feature-section">
+        <div class="feature-header">
+          <h2 class="feature-title">📋 Array Iteration (map)</h2>
+          <p class="feature-description">
+            Use <code style="background: rgba(59, 130, 246, 0.1); padding: 2px 6px; border-radius: 4px;">array.map(item => &lt;element key={item.id}&gt;...&lt;/element&gt;)</code> to render lists. 
+            The <code style="background: rgba(59, 130, 246, 0.1); padding: 2px 6px; border-radius: 4px;">key</code> prop is required for stable DOM updates.
+          </p>
+        </div>
+        
+        <div class="demo-card">
+          <div class="notification-header">
+            <h3 style="margin: 0; color: #e2e8f0; font-size: 1.1rem;">🔔 Notifications ({notifications.length})</h3>
+            <div style="display: flex; gap: 12px;">
+              <button class="btn btn-sm btn-outline" onclick="markAllRead">
+                ✓ Mark all read
+              </button>
+              <button class="btn btn-sm dismiss-btn" onclick="clearNotifications">
+                ✕ Clear All
+              </button>
+            </div>
+          </div>
+          
+          <div class="notification-list">
+            {notifications.length === 0 && (
+              <div class="empty-state">No notifications</div>
+            )}
+            {notifications.map(n => (
+              <div key={n.id} class="notification-item">
+                <div class="notification-content">
+                  <div class="notification-icon">
+                    {n.type === 'info' ? 'ℹ️' : n.type === 'success' ? '✅' : '⚠️'}
+                  </div>
+                  <span class="notification-text">{n.message}</span>
+                </div>
+                {!n.read && <div class="notification-unread"></div>}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div class="code-example">
+<span class="code-comment">// Array state</span>
+<span class="code-keyword">state</span> notifications = [
+  { id: 1, type: <span class="code-string">"info"</span>, message: <span class="code-string">"Welcome!"</span>, read: <span class="code-keyword">false</span> },
+  { id: 2, type: <span class="code-string">"success"</span>, message: <span class="code-string">"Updated"</span>, read: <span class="code-keyword">true</span> }
+]
+
+<span class="code-comment">// Map over array - key prop is required!</span>
+&lt;div&gt;
+  {notifications.map(n =&gt; (
+    &lt;div key={n.id} class="notification-item"&gt;
+      &lt;span&gt;{n.message}&lt;/span&gt;
+      {!n.read && &lt;div class="unread"&gt;&lt;/div&gt;}
+    &lt;/div&gt;
+  ))}
+&lt;/div&gt;
+
+<span class="code-comment">// Empty state with conditional</span>
+{notifications.length === 0 && (
+  &lt;div class="empty-state"&gt;No notifications&lt;/div&gt;
+)}
+        </div>
+      </section>
+      
+      <!-- Nested Composition -->
+      <section class="feature-section">
+        <div class="feature-header">
+          <h2 class="feature-title">🎯 Nested Composition</h2>
+          <p class="feature-description">
+            Combine conditionals, ternaries, and maps for complex rendering logic. 
+            Ternaries inside maps, conditionals inside ternaries, maps inside conditionals - it all works seamlessly!
+          </p>
+        </div>
+        
+        <div class="demo-card">
+          <div class="todo-actions">
+            <button class="btn" onclick="addTodo">+ Add Task</button>
+            <button class="btn btn-outline" onclick="toggleNextTodo">✓ Complete Next</button>
+          </div>
+          
+          <div class="todo-list">
+            {todoItems.length === 0 && (
+              <div class="empty-state">No tasks yet! Add one to get started.</div>
+            )}
+            {todoItems.map(todo => (
+              <div key={todo.id} class="todo-item" :class="todo.completed ? 'todo-completed' : ''">
+                <div class="todo-checkbox">{todo.completed && '✓'}</div>
+                <span class="todo-text">{todo.text}</span>
+              </div>
+            ))}
+          </div>
+          
+          <div class="todo-stats">
+            <span>
+              <span class="stat-value">{todoItems.filter(t => t.completed).length}</span> completed
+            </span>
+            <span>
+              <span class="stat-value">{todoItems.filter(t => !t.completed).length}</span> remaining
+            </span>
+            <span>
+              <span class="stat-value">{todoItems.length}</span> total
+            </span>
+          </div>
+        </div>
+        
+        <div class="code-example">
+<span class="code-comment">// Complex nested composition</span>
+<span class="code-keyword">state</span> todoItems = [
+  { id: 1, text: <span class="code-string">"Learn"</span>, completed: <span class="code-keyword">true</span> },
+  { id: 2, text: <span class="code-string">"Build"</span>, completed: <span class="code-keyword">false</span> }
+]
+
+<span class="code-comment">// Map with nested conditional and ternary</span>
+&lt;div&gt;
+  {todoItems.length === 0 && (
+    &lt;div class="empty-state"&gt;No tasks&lt;/div&gt;
+  )}
+  {todoItems.map(todo =&gt; (
+    &lt;div key={todo.id} :class="todo.completed ? 'todo-completed' : ''"&gt;
+      {todo.completed && &lt;span&gt;✓&lt;/span&gt;}
+      &lt;span&gt;{todo.text}&lt;/span&gt;
+    &lt;/div&gt;
+  ))}
+&lt;/div&gt;
+
+<span class="code-comment">// Ternary with array methods</span>
+&lt;span&gt;
+  {todoItems.filter(t =&gt; t.completed).length} completed
+&lt;/span&gt;
+        </div>
+      </section>
+      
+      <!-- Navigation -->
+      <section class="feature-section">
+        <h2 class="feature-title">🔗 Navigation</h2>
+        <nav class="nav-section">
+          <ZenLink href="/" class="nav-link">← Home</ZenLink>
+          <ZenLink href="/dynamic-primitives" class="nav-link">Primitives Demo →</ZenLink>
+          <ZenLink href="/primitives-demo" class="nav-link">Zen* API Demo</ZenLink>
+        </nav>
+      </section>
+    </main>
+  </div>
+</Main>

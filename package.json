@@ -29,6 +29,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@types/parse5": "^7.0.0",
     "parse5": "^8.0.0"
   }
 }

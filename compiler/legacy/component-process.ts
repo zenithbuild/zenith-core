@@ -9,6 +9,32 @@ import { parseZen } from "./parse";
 import { discoverComponents, discoverLayouts, type ComponentMetadata } from "./component";
 import { extractStateDeclarations } from "./parse";
 
+// Native HTML elements that should never be matched as components
+// This prevents <button> from matching Button.zen, etc.
+const NATIVE_HTML_ELEMENTS = new Set([
+  'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio',
+  'b', 'base', 'bdi', 'bdo', 'blockquote', 'body', 'br', 'button',
+  'canvas', 'caption', 'cite', 'code', 'col', 'colgroup',
+  'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt',
+  'em', 'embed',
+  'fieldset', 'figcaption', 'figure', 'footer', 'form',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html',
+  'i', 'iframe', 'img', 'input', 'ins',
+  'kbd',
+  'label', 'legend', 'li', 'link',
+  'main', 'map', 'mark', 'menu', 'meta', 'meter',
+  'nav', 'noscript',
+  'object', 'ol', 'optgroup', 'option', 'output',
+  'p', 'param', 'picture', 'pre', 'progress',
+  'q',
+  'rp', 'rt', 'ruby',
+  's', 'samp', 'script', 'section', 'select', 'slot', 'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'svg',
+  'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'title', 'tr', 'track',
+  'u', 'ul',
+  'var', 'video',
+  'wbr'
+]);
+
 interface ProcessedComponent {
   metadata: ComponentMetadata;
   instanceId: string;
@@ -118,8 +144,8 @@ export function processComponents(entryFile: ZenFile, entryPath: string): ZenFil
         const hasReplaced = node.attrs && node.attrs.some((attr: any) => attr.name === 'data-zen-replaced' && attr.value === 'true');
         const hasZenComponent = node.attrs && node.attrs.some((attr: any) => attr.name === 'data-zen-component');
         
-        // Only count as found if: not a layout, not already replaced, and matches a component name
-        if (!hasReplaced && !hasZenComponent && !excludeLayouts.has(tagLower) && componentNamesLowercase.has(tagLower)) {
+        // Only count as found if: not a layout, not already replaced, not a native HTML element, and matches a component name
+        if (!hasReplaced && !hasZenComponent && !excludeLayouts.has(tagLower) && !NATIVE_HTML_ELEMENTS.has(tagLower) && componentNamesLowercase.has(tagLower)) {
           found = true;
           return;
         }
@@ -147,8 +173,8 @@ export function processComponents(entryFile: ZenFile, entryPath: string): ZenFil
         const hasReplaced = node.attrs && node.attrs.some((attr: any) => attr.name === 'data-zen-replaced' && attr.value === 'true');
         const hasZenComponent = node.attrs && node.attrs.some((attr: any) => attr.name === 'data-zen-component');
         
-        // Only process if: not a layout, not already replaced, and matches a component name
-        if (!hasReplaced && !hasZenComponent && !excludeLayouts.has(tagLower)) {
+        // Only process if: not a layout, not already replaced, not a native HTML element, and matches a component name
+        if (!hasReplaced && !hasZenComponent && !excludeLayouts.has(tagLower) && !NATIVE_HTML_ELEMENTS.has(tagLower)) {
           const originalName = componentNameMap.get(tagLower);
           if (originalName) {
             // Extract props from attributes
@@ -511,7 +537,8 @@ function hasComponentUsage(
   let found = false;
   
   function walk(node: any): void {
-    if (node.tagName && componentNamesLowercase.has(node.tagName.toLowerCase())) {
+    const tagLower = node.tagName ? node.tagName.toLowerCase() : '';
+    if (node.tagName && !NATIVE_HTML_ELEMENTS.has(tagLower) && componentNamesLowercase.has(tagLower)) {
       found = true;
       return;
     }
@@ -538,9 +565,10 @@ function findFirstComponentUsage(
   function walk(node: any): void {
     if (found) return;
     
-    if (node.tagName && componentNamesLowercase.has(node.tagName.toLowerCase())) {
+    const tagLower = node.tagName ? node.tagName.toLowerCase() : '';
+    if (node.tagName && !NATIVE_HTML_ELEMENTS.has(tagLower) && componentNamesLowercase.has(tagLower)) {
       // Get the original component name (with correct case)
-      const originalName = componentNameMap.get(node.tagName.toLowerCase()) || node.tagName;
+      const originalName = componentNameMap.get(tagLower) || node.tagName;
       
       const props = new Map<string, string>();
       if (node.attrs) {
@@ -1107,6 +1135,34 @@ function cloneNode(node: any): any {
     };
   }
   
+  // For comment nodes, copy the data
+  if (node.nodeName === "#comment") {
+    return {
+      nodeName: node.nodeName,
+      data: node.data,
+      parentNode: undefined
+    };
+  }
+  
+  // For document fragments
+  if (node.nodeName === "#document-fragment") {
+    const cloned: any = {
+      nodeName: node.nodeName,
+      childNodes: [],
+      parentNode: undefined
+    };
+    
+    if (node.childNodes && node.childNodes.length > 0) {
+      cloned.childNodes = node.childNodes.map((child: any) => {
+        const clonedChild = cloneNode(child);
+        clonedChild.parentNode = cloned;
+        return clonedChild;
+      });
+    }
+    
+    return cloned;
+  }
+  
   // For element nodes, clone with proper structure
   const cloned: any = {
     nodeName: node.nodeName,
@@ -1115,6 +1171,11 @@ function cloneNode(node: any): any {
     childNodes: [],
     parentNode: undefined
   };
+  
+  // Copy namespace URI if present (for SVG elements, etc.)
+  if (node.namespaceURI) {
+    cloned.namespaceURI = node.namespaceURI;
+  }
   
   if (node.childNodes && node.childNodes.length > 0) {
     cloned.childNodes = node.childNodes.map((child: any) => {

@@ -1,0 +1,453 @@
+<script>
+// ============================================
+// Dynamic HTML - Primitives-Driven Demo
+// ============================================
+
+// State declarations
+state isLoggedIn = false
+state isLoading = false
+state count = 0
+state username = "Guest"
+
+// Array state for map iterations
+state users = [
+  { id: 1, name: "Alice", role: "Admin" },
+  { id: 2, name: "Bob", role: "Editor" },
+  { id: 3, name: "Charlie", role: "Viewer" }
+]
+
+// Event handlers (all functions below are used in onclick handlers)
+function toggleLogin() {
+  isLoggedIn = !isLoggedIn
+  username = isLoggedIn ? "John Doe" : "Guest"
+}
+
+function toggleLoading() {
+  isLoading = !isLoading
+}
+
+function increment() {
+  count = count + 1
+}
+
+function decrement() {
+  count = count - 1
+}
+
+function addUser() {
+  const newId = users.length + 1
+  users = [...users, { id: newId, name: "User " + newId, role: "Viewer" }]
+}
+
+function removeLastUser() {
+  if (users.length > 0) {
+    users = users.slice(0, -1)
+  }
+}
+</script>
+
+<style>
+  /* Reset and full-page container */
+  .primitives-page {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    min-height: 100vh;
+    color: #e2e8f0;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .primitives-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  
+  /* Header */
+  .page-header {
+    text-align: center;
+    margin-bottom: 48px;
+    padding: 40px 32px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+  }
+  
+  .page-header h1 {
+    margin: 0 0 12px 0;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.02em;
+  }
+  
+  .page-header p {
+    margin: 0;
+    color: rgba(255,255,255,0.9);
+    font-size: 1.1rem;
+    font-weight: 500;
+  }
+  
+  /* Sections */
+  .demo-section {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 28px;
+  }
+  
+  .demo-section h2 {
+    margin: 0 0 8px 0;
+    color: #a5b4fc;
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .section-description {
+    color: #94a3b8;
+    margin: 0 0 20px 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  
+  .demo-area {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  
+  /* Buttons */
+  .btn {
+    background: #6366f1;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 24px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    margin: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .btn:hover {
+    background: #4f46e5;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  }
+  
+  .btn-secondary {
+    background: #475569;
+  }
+  
+  .btn-secondary:hover {
+    background: #334155;
+    box-shadow: 0 6px 20px rgba(71, 85, 105, 0.4);
+  }
+  
+  .btn-success {
+    background: #22c55e;
+  }
+  
+  .btn-success:hover {
+    background: #16a34a;
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+  }
+  
+  .btn-danger {
+    background: #ef4444;
+  }
+  
+  .btn-danger:hover {
+    background: #dc2626;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+  }
+  
+  /* Status badges */
+  .status-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  
+  .status-active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  
+  .status-inactive {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+  
+  /* Flex helpers */
+  .flex-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* Counter */
+  .counter-display {
+    font-size: 4rem;
+    font-weight: 800;
+    color: #6366f1;
+    text-align: center;
+    padding: 32px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border-radius: 16px;
+    margin-bottom: 20px;
+  }
+  
+  /* Messages */
+  .welcome-message {
+    color: #4ade80;
+    padding: 16px 20px;
+    background: rgba(34, 197, 94, 0.1);
+    border-radius: 10px;
+    border-left: 4px solid #22c55e;
+    font-weight: 500;
+  }
+  
+  .login-prompt {
+    color: #fbbf24;
+    padding: 16px 20px;
+    background: rgba(245, 158, 11, 0.1);
+    border-radius: 10px;
+    border-left: 4px solid #f59e0b;
+    font-weight: 500;
+  }
+  
+  /* User list */
+  .user-list-container {
+    margin-top: 16px;
+  }
+  
+  .user-count {
+    padding: 16px 20px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 10px;
+    color: #a5b4fc;
+    font-weight: 600;
+    text-align: center;
+    font-size: 1.1rem;
+  }
+  
+  /* Code blocks */
+  .code-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #334155;
+  }
+  
+  .code-section h3 {
+    margin: 0 0 12px 0;
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .code-block {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    overflow-x: auto;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+  
+  .code-keyword {
+    color: #c084fc;
+  }
+  
+  .code-string {
+    color: #34d399;
+  }
+  
+  .code-comment {
+    color: #475569;
+  }
+  
+  /* Navigation */
+  .nav-section {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding-top: 20px;
+  }
+  
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    background: #334155;
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  
+  .nav-link:hover {
+    background: #475569;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+</style>
+
+<Main title="Dynamic HTML - Primitives">
+  <div class="primitives-page">
+    <div class="primitives-container">
+      <header class="page-header">
+        <h1>⚡ Dynamic HTML Rendering</h1>
+        <p>Primitives-Driven Approach — Explicit Control</p>
+      </header>
+      
+      <section class="demo-section">
+        <h2>🔀 Static Conditionals</h2>
+        <p class="section-description">
+          Use <code>condition && element</code> for conditional rendering based on state.
+        </p>
+        
+        <div class="demo-area">
+          <div class="flex-row" style="margin-bottom: 20px;">
+            <button class="btn" onclick="toggleLogin">Toggle Login Status</button>
+            <span class="status-badge" :class="isLoggedIn ? 'status-active' : 'status-inactive'">
+              {isLoggedIn ? "✓ Logged In" : "✕ Logged Out"}
+            </span>
+          </div>
+          
+          <div>
+            {isLoggedIn && <div class="welcome-message">✓ Welcome back, {username}!</div>}
+            {!isLoggedIn && <div class="login-prompt">⚠ Please log in to continue</div>}
+          </div>
+        </div>
+        
+        <div class="code-section">
+          <h3>Code Example</h3>
+          <pre class="code-block"><span class="code-comment">// State declaration</span>
+<span class="code-keyword">state</span> isLoggedIn = <span class="code-keyword">false</span>
+
+<span class="code-comment">// Conditional rendering</span>
+{isLoggedIn && &lt;span&gt;Welcome back!&lt;/span&gt;}
+{!isLoggedIn && &lt;span&gt;Please log in&lt;/span&gt;}</pre>
+        </div>
+      </section>
+      
+      <section class="demo-section">
+        <h2>❓ Inline Ternaries</h2>
+        <p class="section-description">
+          Use <code>condition ? A : B</code> for inline conditional content that switches between two values.
+        </p>
+        
+        <div class="demo-area">
+          <div class="flex-row" style="margin-bottom: 20px;">
+            <button class="btn" onclick="toggleLoading">Toggle Loading State</button>
+          </div>
+          
+          <button class="btn" :class="isLoading ? 'btn-secondary' : 'btn-success'" style="font-size: 16px; padding: 16px 32px;">
+            {isLoading ? "⏳ Loading..." : "✓ Submit"}
+          </button>
+        </div>
+        
+        <div class="code-section">
+          <h3>Code Example</h3>
+          <pre class="code-block"><span class="code-keyword">state</span> isLoading = <span class="code-keyword">false</span>
+
+&lt;button&gt;
+  {isLoading ? <span class="code-string">"Loading..."</span> : <span class="code-string">"Submit"</span>}
+&lt;/button&gt;</pre>
+        </div>
+      </section>
+      
+      <section class="demo-section">
+        <h2>🔢 Counter with Dynamic Attributes</h2>
+        <p class="section-description">
+          Demonstrates how state changes update both text content and dynamic class bindings.
+        </p>
+        
+        <div class="demo-area">
+          <div class="counter-display">{count}</div>
+          
+          <div class="flex-center" style="margin-bottom: 20px;">
+            <button class="btn btn-secondary" onclick="decrement">− Decrement</button>
+            <button class="btn" onclick="increment">+ Increment</button>
+          </div>
+          
+          <div class="flex-center">
+            <span class="status-badge" :class="count > 0 ? 'status-active' : 'status-inactive'">
+              {count > 0 ? "Positive" : "Zero or Negative"}
+            </span>
+          </div>
+        </div>
+      </section>
+      
+      <section class="demo-section">
+        <h2>📋 Array Operations</h2>
+        <p class="section-description">
+          Demonstrates dynamic state with arrays. The count updates reactively when users are added or removed.
+        </p>
+        
+        <div class="demo-area">
+          <div class="flex-row" style="margin-bottom: 20px;">
+            <button class="btn btn-success" onclick="addUser">+ Add User</button>
+            <button class="btn btn-danger" onclick="removeLastUser">− Remove Last</button>
+          </div>
+          
+          <div class="user-list-container">
+            <div class="user-count">
+              👥 Total Users: {users.length}
+            </div>
+          </div>
+        </div>
+        
+        <div class="code-section">
+          <h3>Code Example</h3>
+          <pre class="code-block"><span class="code-keyword">state</span> users = [
+  { id: 1, name: <span class="code-string">"Alice"</span> },
+  { id: 2, name: <span class="code-string">"Bob"</span> }
+]
+
+<span class="code-comment">// Display count reactively</span>
+Total: {users.length}</pre>
+        </div>
+      </section>
+      
+      <section class="demo-section">
+        <h2>🔗 Navigation</h2>
+        <nav class="nav-section">
+          <ZenLink href="/" class="nav-link">← Home</ZenLink>
+          <ZenLink href="/dynamic-dx" class="nav-link">DX Demo →</ZenLink>
+          <ZenLink href="/primitives-demo" class="nav-link">Zen* API</ZenLink>
+        </nav>
+      </section>
+    </div>
+  </div>
+</Main>

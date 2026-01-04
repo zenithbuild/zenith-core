@@ -11,43 +11,48 @@ type Props = {
 state title = props.title || 'My App'
     </script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
             box-sizing: border-box;
         }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
 
-        header {
+        .layout-header {
             background: #f0f0f0;
             padding: 16px;
         }
 
-        footer {
+        .layout-footer {
             background: #f0f0f0;
             padding: 16px;
             margin-top: 20px;
         }
 
-        main {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            min-height: 100vh;
+        .layout-main {
+            min-height: calc(100vh - 120px);
             width: 100%;
-            align-items: center;
-            justify-content: center;
+        }
+        
+        /* Hide layout header/footer for pages that have their own full design */
+        .full-page ~ .layout-header,
+        .full-page ~ .layout-footer {
+            display: none;
         }
     </style>
 
-    <header>
+    <header class="layout-header">
         <h1>{ title }</h1>
     </header>
 
-    <main>
+    <main class="layout-main">
         <Slot />
     </main>
 
-    <footer>Footer content here</footer>
+    <footer class="layout-footer">Footer content here</footer>
 </body>
 
 </html>

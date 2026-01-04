@@ -118,6 +118,10 @@ export function generateBindingRuntime(
         __zen_${name} = value;
         // Immediately trigger synchronous updates - no batching, no async
         __zen_update_bindings("${name}", value);
+        // Also trigger dynamic expression updates
+        if (window.__zen_trigger_expression_updates) {
+          window.__zen_trigger_expression_updates("${name}");
+        }
       },
       enumerable: true,
       configurable: true
@@ -189,6 +193,10 @@ export function generateBindingRuntime(
         // Also trigger attribute binding updates for this instance
         if (window.__zen_update_attribute_bindings) {
           window.__zen_update_attribute_bindings("${instanceId}");
+        }
+        // Also trigger dynamic expression updates
+        if (window.__zen_trigger_expression_updates) {
+          window.__zen_trigger_expression_updates("${fullStateName}");
         }
       },
       enumerable: true,

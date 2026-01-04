@@ -1,56 +1,44 @@
+/**
+ * Zenith Compiler
+ * 
+ * Phase 1: Parse & Extract
+ * Phase 2: Transform IR → Static HTML + Runtime Bindings
+ * Phase 8/9/10: Finalize Output with Validation
+ * 
+ * This compiler observes .zen files, extracts their structure,
+ * transforms them into static HTML with explicit bindings,
+ * and validates/finalizes output for browser execution.
+ */
 
-import fs from "fs"
-import path from "path"
-import { parseZen } from "./parse"
-import { splitZen } from "./split"
-import { emit } from "./emit"
-import { generateEventBindingRuntime } from "./event"
-import { generateBindingRuntime } from "./binding"
-import { generateAttributeBindingRuntime } from "./bindings"
-import { processComponents } from "./component-process"
+import { parseZenFile } from './parse/parseZenFile'
+import { transformTemplate } from './transform/transformTemplate'
+import { finalizeOutputOrThrow } from './finalize/finalizeOutput'
+import type { ZenIR } from './ir/types'
+import type { CompiledTemplate } from './output/types'
+import type { FinalizedOutput } from './finalize/finalizeOutput'
 
-export function compile(entry: string, outDir = "dist") {
-  // Delete dist directory if it exists
-  if (fs.existsSync(outDir)) {
-    fs.rmSync(outDir, { recursive: true, force: true });
+/**
+ * Compile a .zen file into IR and CompiledTemplate
+ * 
+ * Phase 1: Parses and extracts structure
+ * Phase 2: Transforms IR into static HTML with bindings
+ * Phase 8/9/10: Validates and finalizes output
+ */
+export function compileZen(filePath: string): { 
+  ir: ZenIR
+  compiled: CompiledTemplate
+  finalized?: FinalizedOutput
+} {
+  const ir = parseZenFile(filePath)
+  const compiled = transformTemplate(ir)
+  
+  // Phase 8/9/10: Finalize output with validation
+  // This ensures build fails on invalid expressions
+  try {
+    const finalized = finalizeOutputOrThrow(ir, compiled)
+    return { ir, compiled, finalized }
+  } catch (error: any) {
+    // Re-throw with context
+    throw new Error(`Failed to finalize output for ${filePath}:\n${error.message}`)
   }
-  
-  const zen = parseZen(entry);
-  
-  // Phase 3: Process components and layouts (inline them into the file)
-  const processedZen = processComponents(zen, entry);
-  
-  const { html, styles, scripts, eventTypes, stateBindings, stateDeclarations, bindings } = splitZen(processedZen);
-
-  // Generate runtime code for event types
-  const eventRuntime = generateEventBindingRuntime(eventTypes);
-  
-  // Generate runtime code for text bindings (state variables)
-  const bindingRuntime = generateBindingRuntime(stateBindings, stateDeclarations);
-  
-  // Generate runtime code for attribute bindings (:class, :value)
-  const attributeBindingRuntime = generateAttributeBindingRuntime(bindings);
-
-  const scriptsWithRuntime = scripts.map((s, index) => {
-    // Order: 
-    // 1. Text binding runtime first (creates state variables and sets up text bindings)
-    // 2. Attribute binding runtime (creates window.state proxy for :class/:value)
-    // 3. User script content (can use state variables)
-    // 4. Event runtime (sets up event delegation) - ONLY ONCE in the first script
-    let result = "";
-    if (bindingRuntime) {
-      result += bindingRuntime + "\n\n";
-    }
-    if (attributeBindingRuntime) {
-      result += attributeBindingRuntime + "\n\n";
-    }
-    result += s;
-    // Only add event runtime to the first script to avoid redeclaration errors
-    if (eventRuntime && index === 0) {
-      result += `\n\n${eventRuntime}`;
-    }
-    return result;
-  })
-  
-  emit(outDir, html, scriptsWithRuntime, styles, entry);
 }

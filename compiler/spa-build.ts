@@ -10,9 +10,12 @@
 
 import fs from "fs"
 import path from "path"
-import { parseZen } from "./parse"
-import { splitZen } from "./split"
-import { processComponents } from "./component-process"
+// Import new compiler
+import { compileZen } from "./index"
+// Legacy imports (fallback for now)
+import { parseZen } from "./legacy/parse"
+import { splitZen } from "./legacy/split"
+import { processComponents } from "./legacy/component-process"
 import { 
   discoverPages, 
   generateRouteDefinition,
@@ -41,11 +44,51 @@ interface SPABuildOptions {
 
 /**
  * Compile a single page file
+ * Uses new compiler by default, falls back to legacy if needed
  */
 function compilePage(
   pagePath: string,
-  pagesDir: string
+  pagesDir: string,
+  useNewCompiler: boolean = true  // Feature flag: use new compiler
 ): CompiledPage {
+  if (useNewCompiler) {
+    try {
+      // Use new compiler pipeline
+      const result = compileZen(pagePath)
+      
+      if (!result.finalized) {
+        throw new Error(`Compilation failed: No finalized output`)
+      }
+      
+      // Extract compiled output
+      const html = result.finalized.html
+      const js = result.finalized.js
+      const styles = result.finalized.styles
+      
+      // Convert JS bundle to scripts array (for compatibility)
+      const scripts = js ? [js] : []
+      
+      // Generate route definition
+      const routeDef = generateRouteDefinition(pagePath, pagesDir)
+      const regex = routePathToRegex(routeDef.path)
+      
+      return {
+        routePath: routeDef.path,
+        filePath: pagePath,
+        html,
+        scripts,
+        styles,
+        score: routeDef.score,
+        paramNames: routeDef.paramNames,
+        regex
+      }
+    } catch (error: any) {
+      console.warn(`[Zenith Build] New compiler failed for ${pagePath}, falling back to legacy:`, error.message)
+      // Fall through to legacy compiler
+    }
+  }
+  
+  // Legacy compiler (fallback)
   // Parse the .zen file
   const zen = parseZen(pagePath)
   
@@ -60,22 +103,44 @@ function compilePage(
     eventTypes, 
     stateBindings, 
     stateDeclarations, 
-    bindings 
+    bindings,
+    expressionBlocks,
+    attrExprBindings
   } = splitZen(processedZen)
   
   // Import runtime generators
-  const { generateEventBindingRuntime } = require("./event")
-  const { generateBindingRuntime } = require("./binding")
-  const { generateAttributeBindingRuntime } = require("./bindings")
+  const { generateEventBindingRuntime } = require("./legacy/event")
+  const { generateBindingRuntime } = require("./legacy/binding")
+  const { generateAttributeBindingRuntime } = require("./legacy/bindings")
+  const { generateExpressionRuntime, generateExpressionRuntimeHelpers, generateAttributeExpressionRuntime } = require("./legacy/expression")
   
   // Generate runtime code
   const eventRuntime = generateEventBindingRuntime(eventTypes)
   const bindingRuntime = generateBindingRuntime(stateBindings, stateDeclarations)
   const attributeBindingRuntime = generateAttributeBindingRuntime(bindings)
   
+  // Generate expression runtime
+  // Always generate helpers if we have :class/:value bindings OR expression blocks
+  // (bindings.ts uses window.__zen_eval_expr for :class expressions)
+  const hasExpressions = expressionBlocks.length > 0 || attrExprBindings.length > 0 || bindings.length > 0
+  const expressionRuntimeHelpers = hasExpressions ? generateExpressionRuntimeHelpers() : ''
+  const expressionRuntimes = expressionBlocks.map((block: any) => 
+    generateExpressionRuntime(block.expression, block.placeholderId)
+  ).join('\n')
+  const attrExprRuntime = generateAttributeExpressionRuntime(attrExprBindings)
+  
   // Combine scripts with runtime
-  const scriptsWithRuntime = scripts.map((s, index) => {
+  // If scripts array is empty but we have runtimes to add, create a script entry
+  const baseScripts = scripts.length > 0 ? scripts : ['']
+  
+  const scriptsWithRuntime = baseScripts.map((s, index) => {
     let result = ""
+    
+    // Add expression helpers first (only to first script)
+    if (expressionRuntimeHelpers && index === 0) {
+      result += expressionRuntimeHelpers + "\n\n"
+    }
+    
     if (bindingRuntime) {
       result += bindingRuntime + "\n\n"
     }
@@ -83,8 +148,18 @@ function compilePage(
       result += attributeBindingRuntime + "\n\n"
     }
     result += s
-    if (eventRuntime && index === 0) {
+    
+    // Add expression and event runtimes to first script
+    if (index === 0) {
+      if (expressionRuntimes) {
+        result += `\n\n${expressionRuntimes}`
+      }
+      if (attrExprRuntime) {
+        result += `\n\n${attrExprRuntime}`
+      }
+      if (eventRuntime) {
       result += `\n\n${eventRuntime}`
+      }
     }
     return result
   })
@@ -367,7 +442,10 @@ function generateRuntimeRouterCode(): string {
   const prefetchedRoutes = new Set();
   function prefetch(path) {
     const normalizedPath = path === '' ? '/' : path;
+    console.log('[Zenith Router] Prefetch requested for:', normalizedPath);
+    
     if (prefetchedRoutes.has(normalizedPath)) {
+      console.log('[Zenith Router] Route already prefetched:', normalizedPath);
       return Promise.resolve();
     }
     prefetchedRoutes.add(normalizedPath);
@@ -375,15 +453,21 @@ function generateRuntimeRouterCode(): string {
     // Find matching route
     const resolved = resolveRoute(normalizedPath);
     if (!resolved) {
+      console.warn('[Zenith Router] Prefetch: No route found for:', normalizedPath);
       return Promise.resolve();
     }
     
+    console.log('[Zenith Router] Prefetch: Route resolved:', resolved.record.path);
+    
     // Preload the module if it exists
     if (pageModules[resolved.record.path]) {
+      console.log('[Zenith Router] Prefetch: Module already loaded:', resolved.record.path);
       // Module already loaded
       return Promise.resolve();
     }
     
+    console.log('[Zenith Router] Prefetch: Module not yet loaded (all modules are pre-loaded in SPA build)');
+    // In SPA build, all modules are already loaded, so this is a no-op
     // Could prefetch here if we had a way to load modules dynamically
     return Promise.resolve();
   }

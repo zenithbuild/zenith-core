@@ -69,6 +69,8 @@
           <li><ZenLink href="/" class="zen-nav-link" exact>Home</ZenLink></li>
           <li><ZenLink href="/about" class="zen-nav-link">About</ZenLink></li>
           <li><ZenLink href="/primitives-demo" class="zen-nav-link">Primitives Demo</ZenLink></li>
+          <li><ZenLink href="/navigation-demo" class="zen-nav-link">Navigation Demo</ZenLink></li>
+          <li><ZenLink href="/dynamic-dx" class="zen-nav-link">Dynamic Primitives</ZenLink></li>
           <li><ZenLink href="/blog" class="zen-nav-link">Blog</ZenLink></li>
           <li><ZenLink href="/blog/42" class="zen-nav-link" onClick="handleNavClick">Blog #42</ZenLink></li>
           <li><ZenLink href="/posts/hello/world" class="zen-nav-link" preload>Catch-All</ZenLink></li>
