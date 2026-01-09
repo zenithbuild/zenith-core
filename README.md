@@ -1,55 +1,39 @@
+# @zenithbuild/core ⚡
 
-# Zenith Framework
+The heart of the Zenith framework. High-performance reactive runtime, compiler, and build primitives.
 
----
+## Overview
 
-## README.md
+Zenith is a modern reactive web framework designed for maximum performance and developer experience. The core package contains the essential building blocks:
+- **Compiler**: Transforms `.zen` files into optimized JavaScript.
+- **Runtime**: A lightweight, efficient reactive system for the browser.
+- **Router**: Lightweight client-side routing.
+- **Build Primitives**: Tools for dev servers and production builds.
 
-### What is Zenith?
+## Key Components
 
-Zenith is an **HTML-first, web-native framework** focused on predictable rendering, persistent navigation state, and minimal JavaScript by default.
+### 1. Compiler (`/compiler`)
+The Zenith compiler handles parsing and transforming Single File Components (`.zen`). It leverages `parse5` for robust HTML parsing and generates highly optimized render functions.
 
-Zenith treats HTML as the source of truth. Behavior is inferred through static analysis rather than developer flags like `use client` or `client-only`.
+### 2. Runtime (`/runtime`)
+Our runtime is designed to be minimal. It manages the reactive cycle, efficient DOM updates, and lifecycle management (like `zenOnMount`).
 
-The framework is currently **under active construction**. Core goals and constraints are intentionally defined early to avoid runtime complexity and hydration pitfalls seen in existing frameworks.
+### 3. Server (`/bin/zen-dev`, `/bin/zen-build`)
+Low-level binaries for orchestrating development and production environments.
 
-### Core Principles (Locked In)
+## Architecture
 
-* HTML-first authoring
-* `.zenith` file format
-* Optional `<script>` and `<style>` blocks
-* No required `<template>` wrapper
-* Automatic client/runtime detection
-* Navigation lifecycle as a first-class primitive
-* Persistent layouts across navigation
-* VDOM used intentionally (not everywhere)
+Zenith follows a "Compiler-First" philosophy. We shift as much work as possible to build time, keeping the client-side bundle lean and fast.
 
-### What Zenith Is (Currently)
+## Usage (Internal)
 
-* A compiler that transforms `.zenith` files into optimized runtime modules
-* A navigation-aware runtime with lifecycle hooks
-* A layout + document ownership system
+This package is typically consumed by the Zenith CLI and other ecosystem tools.
 
-### What Zenith Is Not (Yet)
-
-* A finished production framework
-* A replacement for all React/Vue use-cases
-* An SSR platform (planned, not finalized)
-
-### High-Level Architecture
-
-```
-.zenith files
-   ↓
-Compiler (parse → analyze → compose → generate)
-   ↓
-Runtime (navigation + rendering)
-   ↓
-DOM
+```typescript
+import { compile } from '@zenithbuild/core/compiler';
+// ... compile logic
 ```
 
-### Status
+## License
 
-Zenith is in the **foundation phase**. APIs may change rapidly.
-
-### [Contributing](./docs/CONTRIBUTING.md)
+MIT
