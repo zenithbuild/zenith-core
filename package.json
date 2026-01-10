@@ -1,6 +1,6 @@
 {
   "name": "@zenithbuild/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core library for the Zenith framework",
   "license": "MIT",
   "type": "module",
@@ -37,6 +37,7 @@
   "private": false,
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/node": "latest",
     "prettier": "^3.7.4"
   },
   "peerDependencies": {
