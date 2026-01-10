@@ -6,10 +6,22 @@
   "type": "module",
   "main": "./index.ts",
   "bin": {
+    "zenith": "./bin/zenith.ts",
+    "zenith-dev": "./bin/zen-dev.ts",
     "zen-dev": "./bin/zen-dev.ts",
     "zen-build": "./bin/zen-build.ts",
     "zen-preview": "./bin/zen-preview.ts"
   },
+  "files": [
+    "bin",
+    "cli",
+    "compiler",
+    "core",
+    "router",
+    "runtime",
+    "index.ts",
+    "tsconfig.json"
+  ],
   "exports": {
     ".": "./index.ts",
     "./compiler": "./compiler/index.ts",
