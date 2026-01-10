@@ -1,11 +1,13 @@
 /**
  * @zenith/cli - Build Command
  * 
- * Builds the application for production
+ * Builds the application for production using SSG.
  */
 
+import path from 'path'
 import { requireProject } from '../utils/project'
 import * as logger from '../utils/logger'
+import { buildSSG } from '../../compiler/ssg-build'
 
 export interface BuildOptions {
     outDir?: string
@@ -20,14 +22,11 @@ export async function build(options: BuildOptions = {}): Promise<void> {
     logger.log(`Output: ${outDir}`)
 
     try {
-        const { ZenithBundler } = await import('@zenith/bundler')
-
-        const bundler = new ZenithBundler({
+        buildSSG({
             pagesDir: project.pagesDir,
-            outDir
+            outDir: outDir,
+            baseDir: project.root
         })
-
-        await bundler.bundle()
         logger.success('Build complete!')
 
     } catch (err: unknown) {

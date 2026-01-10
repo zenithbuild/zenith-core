@@ -6,11 +6,11 @@
   "type": "module",
   "main": "./index.ts",
   "bin": {
-    "zenith": "./bin/zenith.ts",
-    "zenith-dev": "./bin/zen-dev.ts",
-    "zen-dev": "./bin/zen-dev.ts",
-    "zen-build": "./bin/zen-build.ts",
-    "zen-preview": "./bin/zen-preview.ts"
+    "zenith": "./dist/cli.js",
+    "zenith-dev": "./dist/cli.js",
+    "zen-dev": "./dist/cli.js",
+    "zen-build": "./dist/cli.js",
+    "zen-preview": "./dist/cli.js"
   },
   "files": [
     "bin",
@@ -19,6 +19,7 @@
     "core",
     "router",
     "runtime",
+    "dist",
     "index.ts",
     "tsconfig.json"
   ],
@@ -43,6 +44,7 @@
     "dev": "bun dev",
     "build": "bun build",
     "start": "bun run build && bun run dev",
+    "build:cli": "bun build bin/cli-source.ts --outfile dist/cli.js --target bun --bundle && echo '#!/usr/bin/env bun' | cat - dist/cli.js > dist/cli.tmp && mv dist/cli.tmp dist/cli.js && chmod +x dist/cli.js",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\""
   },

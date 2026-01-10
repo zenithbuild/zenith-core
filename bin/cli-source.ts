@@ -1,32 +1,50 @@
-#!/usr/bin/env bun
 /**
  * @zenith/cli - Entry Point
  * 
- * Main executable for the Zenith CLI
+ * Main executable for the Zenith CLI.
+ * Handles both "zenith <command>" and direct alias calls (zenith-dev, etc.)
  */
 
 import process from 'node:process'
+import path from 'node:path'
 import { getCommand, showHelp, placeholderCommands } from '../cli/commands/index'
 import * as logger from '../cli/utils/logger'
 
 async function main() {
     const args = process.argv.slice(2)
+    const invokedAs = path.basename(process.argv[1] || '')
 
-    if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
+    let commandName: string | undefined = args[0]
+    let commandArgs = args.slice(1)
+
+    // Handle aliases (e.g. zenith-dev, zen-dev)
+    if (invokedAs.includes('dev')) {
+        commandName = 'dev'
+        commandArgs = args
+    } else if (invokedAs.includes('build')) {
+        commandName = 'build'
+        commandArgs = args
+    } else if (invokedAs.includes('preview')) {
+        commandName = 'preview'
+        commandArgs = args
+    }
+
+    if (!commandName || commandName === '--help' || commandName === '-h') {
         showHelp()
         process.exit(0)
     }
 
-    const commandName = args[0]!
-    const commandArgs = args.slice(1).filter((a: string) => !a.startsWith('--'))
+    // Filter out options from commandArgs for simple command parsing if needed
+    // However, most commands parse their own options
+    const filteredArgs = commandArgs.filter((a: string) => !a.startsWith('--'))
 
     // Parse options (--key value format)
     const options: Record<string, string> = {}
-    for (let i = 1; i < args.length; i++) {
-        const arg = args[i]!
+    for (let i = 0; i < commandArgs.length; i++) {
+        const arg = commandArgs[i]!
         if (arg.startsWith('--')) {
             const key = arg.slice(2)
-            const value = args[i + 1]
+            const value = commandArgs[i + 1]
             if (value && !value.startsWith('--')) {
                 options[key] = value
                 i++

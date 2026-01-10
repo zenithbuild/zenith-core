@@ -1,11 +1,11 @@
 /**
  * @zenith/cli - Preview Command
  * 
- * Serves the built dist/ folder for production preview
+ * Serves the production build from the distribution directory.
  */
 
-import fs from 'fs'
 import path from 'path'
+import { serve } from 'bun'
 import { requireProject } from '../utils/project'
 import * as logger from '../utils/logger'
 
@@ -15,52 +15,43 @@ export interface PreviewOptions {
 
 export async function preview(options: PreviewOptions = {}): Promise<void> {
     const project = requireProject()
-    const port = options.port || 4000
+    const distDir = project.distDir
+    const port = options.port || parseInt(process.env.PORT || '4173', 10)
 
     logger.header('Zenith Preview Server')
-    logger.log(`Serving: ${project.distDir}`)
+    logger.log(`Serving: ${distDir}`)
 
-    if (!fs.existsSync(project.distDir)) {
-        logger.error('No dist/ folder found. Run `zenith build` first.')
-        process.exit(1)
-    }
+    // File extensions that should be served as static assets
+    const STATIC_EXTENSIONS = new Set([
+        '.js', '.css', '.ico', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+        '.webp', '.woff', '.woff2', '.ttf', '.eot', '.json', '.map'
+    ])
 
-    const server = Bun.serve({
+    const server = serve({
         port,
         async fetch(req) {
             const url = new URL(req.url)
-            let pathname = url.pathname
+            const pathname = url.pathname
+            const ext = path.extname(pathname).toLowerCase()
 
-            if (pathname === '/') pathname = '/index.html'
-
-            let filePath = path.join(project.distDir, pathname)
-
-            if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-                filePath = path.join(filePath, 'index.html')
-            }
-
-            if (!path.extname(pathname) && !fs.existsSync(filePath)) {
-                filePath = path.join(project.distDir, pathname, 'index.html')
-            }
-
-            if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            if (STATIC_EXTENSIONS.has(ext)) {
+                const filePath = path.join(distDir, pathname)
                 const file = Bun.file(filePath)
-                const ext = path.extname(filePath).toLowerCase()
-                const contentTypes: Record<string, string> = {
-                    '.html': 'text/html',
-                    '.css': 'text/css',
-                    '.js': 'application/javascript',
-                    '.json': 'application/json',
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.svg': 'image/svg+xml'
+                if (await file.exists()) {
+                    return new Response(file)
                 }
-                return new Response(file, {
-                    headers: { 'Content-Type': contentTypes[ext] || 'application/octet-stream' }
+                return new Response('Not found', { status: 404 })
+            }
+
+            const indexPath = path.join(distDir, 'index.html')
+            const indexFile = Bun.file(indexPath)
+            if (await indexFile.exists()) {
+                return new Response(indexFile, {
+                    headers: { 'Content-Type': 'text/html; charset=utf-8' }
                 })
             }
 
-            return new Response('Not Found', { status: 404 })
+            return new Response('No production build found. Run `zenith build` first.', { status: 500 })
         }
     })
 
