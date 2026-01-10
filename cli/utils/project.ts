@@ -28,8 +28,8 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
                 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
                 const deps = { ...pkg.dependencies, ...pkg.devDependencies }
 
-                // Check for any @zenith/* dependency
-                const hasZenith = Object.keys(deps).some(d => d.startsWith('@zenith/'))
+                // Check for any @zenith/* or @zenithbuild/* dependency
+                const hasZenith = Object.keys(deps).some(d => d.startsWith('@zenith/') || d.startsWith('@zenithbuild/'))
                 if (hasZenith) {
                     return current
                 }
@@ -51,10 +51,16 @@ export function getProject(cwd: string = process.cwd()): ZenithProject | null {
     const root = findProjectRoot(cwd)
     if (!root) return null
 
+    // Support both app/ and src/ directory structures
+    let appDir = path.join(root, 'app')
+    if (!fs.existsSync(appDir)) {
+        appDir = path.join(root, 'src')
+    }
+
     return {
         root,
-        pagesDir: path.join(root, 'app/pages'),
-        distDir: path.join(root, 'app/dist'),
+        pagesDir: path.join(appDir, 'pages'),
+        distDir: path.join(appDir, 'dist'),
         hasZenithDeps: true
     }
 }
