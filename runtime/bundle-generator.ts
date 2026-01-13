@@ -506,6 +506,120 @@ export function generateBundleJS(): string {
     return new ZenCollection(data);
   }
 
+  // ============================================
+  // useZenOrder - Documentation ordering & navigation
+  // ============================================
+  
+  function slugify(text) {
+    return String(text || '')
+      .toLowerCase()
+      .replace(/[^\\w\\s-]/g, '')
+      .replace(/\\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  }
+  
+  function getDocSlug(doc) {
+    const slugOrId = String(doc.slug || doc.id || '');
+    const parts = slugOrId.split('/');
+    const filename = parts[parts.length - 1];
+    return filename ? slugify(filename) : slugify(doc.title || 'untitled');
+  }
+  
+  function processRawSections(rawSections) {
+    const sections = (rawSections || []).map(function(rawSection) {
+      const sectionSlug = slugify(rawSection.title || rawSection.id || 'section');
+      const items = (rawSection.items || []).map(function(item) {
+        return Object.assign({}, item, {
+          slug: getDocSlug(item),
+          sectionSlug: sectionSlug,
+          isIntro: item.intro === true || (item.tags && item.tags.includes && item.tags.includes('intro'))
+        });
+      });
+      
+      // Sort items: intro first, then order, then alphabetical
+      items.sort(function(a, b) {
+        if (a.isIntro && !b.isIntro) return -1;
+        if (!a.isIntro && b.isIntro) return 1;
+        if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+        if (a.order !== undefined) return -1;
+        if (b.order !== undefined) return 1;
+        return (a.title || '').localeCompare(b.title || '');
+      });
+      
+      return {
+        id: rawSection.id || sectionSlug,
+        title: rawSection.title || 'Untitled',
+        slug: sectionSlug,
+        order: rawSection.order !== undefined ? rawSection.order : (rawSection.meta && rawSection.meta.order),
+        hasIntro: items.some(function(i) { return i.isIntro; }),
+        items: items
+      };
+    });
+    
+    // Sort sections: order → hasIntro → alphabetical
+    sections.sort(function(a, b) {
+      if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+      if (a.order !== undefined) return -1;
+      if (b.order !== undefined) return 1;
+      if (a.hasIntro && !b.hasIntro) return -1;
+      if (!a.hasIntro && b.hasIntro) return 1;
+      return a.title.localeCompare(b.title);
+    });
+    
+    return sections;
+  }
+  
+  function createZenOrder(rawSections) {
+    const sections = processRawSections(rawSections);
+    
+    return {
+      sections: sections,
+      selectedSection: sections[0] || null,
+      selectedDoc: sections[0] && sections[0].items[0] || null,
+      
+      getSectionBySlug: function(sectionSlug) {
+        return sections.find(function(s) { return s.slug === sectionSlug; }) || null;
+      },
+      
+      getDocBySlug: function(sectionSlug, docSlug) {
+        var section = sections.find(function(s) { return s.slug === sectionSlug; });
+        if (!section) return null;
+        return section.items.find(function(d) { return d.slug === docSlug; }) || null;
+      },
+      
+      getNextDoc: function(currentDoc) {
+        if (!currentDoc) return null;
+        var currentSection = sections.find(function(s) { return s.slug === currentDoc.sectionSlug; });
+        if (!currentSection) return null;
+        var idx = currentSection.items.findIndex(function(d) { return d.slug === currentDoc.slug; });
+        if (idx < currentSection.items.length - 1) return currentSection.items[idx + 1];
+        var secIdx = sections.findIndex(function(s) { return s.slug === currentSection.slug; });
+        if (secIdx < sections.length - 1) return sections[secIdx + 1].items[0] || null;
+        return null;
+      },
+      
+      getPrevDoc: function(currentDoc) {
+        if (!currentDoc) return null;
+        var currentSection = sections.find(function(s) { return s.slug === currentDoc.sectionSlug; });
+        if (!currentSection) return null;
+        var idx = currentSection.items.findIndex(function(d) { return d.slug === currentDoc.slug; });
+        if (idx > 0) return currentSection.items[idx - 1];
+        var secIdx = sections.findIndex(function(s) { return s.slug === currentSection.slug; });
+        if (secIdx > 0) {
+          var prev = sections[secIdx - 1];
+          return prev.items[prev.items.length - 1] || null;
+        }
+        return null;
+      },
+      
+      buildDocUrl: function(sectionSlug, docSlug) {
+        if (!docSlug || docSlug === 'index') return '/documentation/' + sectionSlug;
+        return '/documentation/' + sectionSlug + '/' + docSlug;
+      }
+    };
+  }
+
   // Virtual DOM Helper for JSX-style expressions
   function h(tag, props, children) {
     const el = document.createElement(tag);
@@ -573,6 +687,10 @@ export function generateBundleJS(): string {
     // zenith:content
     defineSchema: defineSchema,
     zenCollection: zenCollection,
+    // useZenOrder hook
+    createZenOrder: createZenOrder,
+    processRawSections: processRawSections,
+    slugify: slugify,
     // Virtual DOM helper for JSX
     h: h,
     // Lifecycle
@@ -609,6 +727,11 @@ export function generateBundleJS(): string {
   global.untrack = zenUntrack;
   global.onMount = zenOnMount;
   global.onUnmount = zenOnUnmount;
+  
+  // useZenOrder hook exports
+  global.createZenOrder = createZenOrder;
+  global.processRawSections = processRawSections;
+  global.slugify = slugify;
   
   // ============================================
   // HMR Client (Development Only)

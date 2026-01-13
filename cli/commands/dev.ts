@@ -244,16 +244,44 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 }
 
 function findPageForRoute(route: string, pagesDir: string): string | null {
+    // 1. Try exact match first (e.g., /about -> about.zen)
     const exactPath = path.join(pagesDir, route === '/' ? 'index.zen' : `${route.slice(1)}.zen`)
     if (fs.existsSync(exactPath)) return exactPath
+
+    // 2. Try index.zen in directory (e.g., /about -> about/index.zen)
     const indexPath = path.join(pagesDir, route === '/' ? 'index.zen' : `${route.slice(1)}/index.zen`)
     if (fs.existsSync(indexPath)) return indexPath
+
+    // 3. Try dynamic routes [slug].zen, [...slug].zen
+    // Walk up the path looking for dynamic segments
+    const segments = route === '/' ? [] : route.slice(1).split('/').filter(Boolean)
+
+    // Try matching with dynamic [slug].zen at each level
+    for (let i = segments.length - 1; i >= 0; i--) {
+        const staticPart = segments.slice(0, i).join('/')
+        const baseDir = staticPart ? path.join(pagesDir, staticPart) : pagesDir
+
+        // Check for [slug].zen (single segment catch)
+        const singleDynamicPath = path.join(baseDir, '[slug].zen')
+        if (fs.existsSync(singleDynamicPath)) return singleDynamicPath
+
+        // Check for [...slug].zen (catch-all)
+        const catchAllPath = path.join(baseDir, '[...slug].zen')
+        if (fs.existsSync(catchAllPath)) return catchAllPath
+    }
+
+    // 4. Check for catch-all at root
+    const rootCatchAll = path.join(pagesDir, '[...slug].zen')
+    if (fs.existsSync(rootCatchAll)) return rootCatchAll
+
     return null
 }
 
 function generateDevHTML(page: CompiledPage, contentData: any = {}): string {
     const runtimeTag = `<script src="/runtime.js"></script>`
-    const contentTag = `<script>window.__ZENITH_CONTENT__ = ${JSON.stringify(contentData)};</script>`
+    // Escape </script> sequences in JSON content to prevent breaking the script tag
+    const contentJson = JSON.stringify(contentData).replace(/<\//g, '<\\/')
+    const contentTag = `<script>window.__ZENITH_CONTENT__ = ${contentJson};</script>`
     const scriptTag = `<script>\n${page.script}\n</script>`
     const allScripts = `${runtimeTag}\n${contentTag}\n${scriptTag}`
     return page.html.includes('</body>')
