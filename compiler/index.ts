@@ -3,6 +3,8 @@ import { parseTemplate } from './parse/parseTemplate'
 import { parseScript } from './parse/parseScript'
 import { transformTemplate } from './transform/transformTemplate'
 import { finalizeOutputOrThrow } from './finalize/finalizeOutput'
+import { validateInvariants } from './validate/invariants'
+import { InvariantError } from './errors/compilerError'
 import type { ZenIR, StyleIR } from './ir/types'
 import type { CompiledTemplate } from './output/types'
 import type { FinalizedOutput } from './finalize/finalizeOutput'
@@ -22,7 +24,13 @@ export function compileZen(filePath: string): {
 /**
  * Compile Zen source string into IR and CompiledTemplate
  */
-export function compileZenSource(source: string, filePath: string): {
+export function compileZenSource(
+  source: string,
+  filePath: string,
+  options?: {
+    componentsDir?: string
+  }
+): {
   ir: ZenIR
   compiled: CompiledTemplate
   finalized?: FinalizedOutput
@@ -34,19 +42,33 @@ export function compileZenSource(source: string, filePath: string): {
   const script = parseScript(source)
 
   // Parse styles
-  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi
+  const styleRegex = /\u003cstyle[^\u003e]*\u003e([\s\S]*?)\u003c\/style\u003e/gi
   const styles: StyleIR[] = []
   let match
   while ((match = styleRegex.exec(source)) !== null) {
     if (match[1]) styles.push({ raw: match[1].trim() })
   }
 
-  const ir: ZenIR = {
+  let ir: ZenIR = {
     filePath,
     template,
     script,
     styles
   }
+
+  // Resolve components if components directory is provided
+  if (options?.componentsDir) {
+    const { discoverComponents } = require('./discovery/componentDiscovery')
+    const { resolveComponentsInIR } = require('./transform/componentResolver')
+
+    // Component resolution may throw InvariantError — let it propagate
+    const components = discoverComponents(options.componentsDir)
+    ir = resolveComponentsInIR(ir, components)
+  }
+
+  // Validate all compiler invariants after resolution
+  // Throws InvariantError if any invariant is violated
+  validateInvariants(ir, filePath)
 
   const compiled = transformTemplate(ir)
 
@@ -54,7 +76,6 @@ export function compileZenSource(source: string, filePath: string): {
     const finalized = finalizeOutputOrThrow(ir, compiled)
     return { ir, compiled, finalized }
   } catch (error: any) {
-    throw new Error(`Failed to finalize output for ${filePath}:\n${error.message}`)
+    throw new Error(`Failed to finalize output for ${filePath}:\\n${error.message}`)
   }
 }
-

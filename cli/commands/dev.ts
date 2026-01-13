@@ -90,6 +90,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
     function compilePageInMemory(pagePath: string): CompiledPage | null {
         try {
             const layoutsDir = path.join(pagesDir, '../layouts')
+            const componentsDir = path.join(pagesDir, '../components')
             const layouts = discoverLayouts(layoutsDir)
             const source = fs.readFileSync(pagePath, 'utf-8')
 
@@ -98,7 +99,9 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 
             if (layoutToUse) processedSource = processLayout(source, layoutToUse)
 
-            const result = compileZenSource(processedSource, pagePath)
+            const result = compileZenSource(processedSource, pagePath, {
+                componentsDir: fs.existsSync(componentsDir) ? componentsDir : undefined
+            })
             if (!result.finalized) throw new Error('Compilation failed')
 
             const routeDef = generateRouteDefinition(pagePath, pagesDir)

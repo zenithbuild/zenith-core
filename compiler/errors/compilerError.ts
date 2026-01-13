@@ -22,3 +22,35 @@ export class CompilerError extends Error {
   }
 }
 
+/**
+ * Invariant Error
+ * 
+ * Thrown when a Zenith compiler invariant is violated.
+ * Invariants are non-negotiable rules that guarantee correct behavior.
+ * 
+ * If an invariant fails, the compiler is at fault — not the user.
+ * The user receives a clear explanation of what is forbidden and why.
+ */
+export class InvariantError extends CompilerError {
+  invariantId: string
+  guarantee: string
+
+  constructor(
+    invariantId: string,
+    message: string,
+    guarantee: string,
+    file: string,
+    line: number,
+    column: number
+  ) {
+    super(`[${invariantId}] ${message}\n\n  Zenith Guarantee: ${guarantee}`, file, line, column)
+    this.name = 'InvariantError'
+    this.invariantId = invariantId
+    this.guarantee = guarantee
+  }
+
+  override toString(): string {
+    return `${this.file}:${this.line}:${this.column} [${this.invariantId}] ${this.message}`
+  }
+}
+

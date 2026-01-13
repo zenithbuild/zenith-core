@@ -106,17 +106,29 @@ export function finalizeOutput(
  * Verify HTML contains no raw {expression} syntax
  * 
  * This is a critical check - browser must never see raw expressions
+ * 
+ * Excludes:
+ * - Content inside <pre>, <code> tags (display code samples)
+ * - Content that looks like HTML tags (from entity decoding)
+ * - Comments
+ * - Data attributes
  */
 function verifyNoRawExpressions(html: string, filePath: string): string[] {
   const errors: string[] = []
-  
+
+  // Remove content inside <pre> and <code> tags before checking
+  // These are code samples that may contain { } legitimately
+  let htmlToCheck = html
+    .replace(/<pre[^>]*>[\s\S]*?<\/pre>/gi, '')
+    .replace(/<code[^>]*>[\s\S]*?<\/code>/gi, '')
+
   // Check for raw {expression} patterns (not data-zen-* attributes)
   // Allow data-zen-text, data-zen-attr-* but not raw { }
   const rawExpressionPattern = /\{[^}]*\}/g
-  const matches = html.match(rawExpressionPattern)
-  
+  const matches = htmlToCheck.match(rawExpressionPattern)
+
   if (matches && matches.length > 0) {
-    // Filter out false positives (comments, data attributes, etc.)
+    // Filter out false positives
     const actualExpressions = matches.filter(match => {
       // Exclude if it's in a comment
       if (html.includes(`<!--${match}`) || html.includes(`${match}-->`)) {
@@ -126,10 +138,27 @@ function verifyNoRawExpressions(html: string, filePath: string): string[] {
       if (match.includes('data-zen-')) {
         return false
       }
+      // Exclude if it contains HTML tags (likely from entity decoding in display content)
+      // Real expressions don't start with < inside braces
+      if (match.match(/^\{[\s]*</)) {
+        return false
+      }
+      // Exclude if it looks like display content containing HTML (spans, divs, etc)
+      if (/<[a-zA-Z]/.test(match)) {
+        return false
+      }
+      // Exclude CSS-like content (common in style attributes)
+      if (match.includes(';') && match.includes(':')) {
+        return false
+      }
+      // Exclude if it's a single closing tag pattern (from multiline display)
+      if (/^\{[\s]*<\//.test(match)) {
+        return false
+      }
       // This looks like a raw expression
       return true
     })
-    
+
     if (actualExpressions.length > 0) {
       errors.push(
         `HTML contains raw expressions that were not compiled: ${actualExpressions.join(', ')}\n` +
@@ -138,7 +167,7 @@ function verifyNoRawExpressions(html: string, filePath: string): string[] {
       )
     }
   }
-  
+
   return errors
 }
 
@@ -152,12 +181,12 @@ export function finalizeOutputOrThrow(
   compiled: CompiledTemplate
 ): FinalizedOutput {
   const output = finalizeOutput(ir, compiled)
-  
+
   if (output.hasErrors) {
     const errorMessage = output.errors.join('\n\n')
     throw new Error(`Compilation failed:\n\n${errorMessage}`)
   }
-  
+
   return output
 }
 

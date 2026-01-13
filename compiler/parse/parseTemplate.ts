@@ -7,10 +7,12 @@
 
 import { parse, parseFragment } from 'parse5'
 import type { TemplateIR, TemplateNode, ElementNode, TextNode, ExpressionNode, AttributeIR, ExpressionIR, SourceLocation, LoopContext } from '../ir/types'
-import { CompilerError } from '../errors/compilerError'
+import { CompilerError, InvariantError } from '../errors/compilerError'
 import { parseScript } from './parseScript'
 import { detectMapExpression, extractLoopVariables, referencesLoopVariable } from './detectMapExpressions'
 import { shouldAttachLoopContext, mergeLoopContext, extractLoopContextFromExpression } from './trackLoopContext'
+import { INVARIANT } from '../validate/invariants'
+import { lowerFragments } from '../transform/fragmentLowering'
 
 // Generate stable IDs for expressions
 let expressionIdCounter = 0
@@ -362,6 +364,29 @@ function parseNode(
     const location = getLocation(node, originalHtml)
     const tag = node.tagName?.toLowerCase() || node.nodeName
 
+    // Extract original tag name from source HTML to preserve casing (parse5 lowercases everything)
+    let originalTag = node.tagName || node.nodeName
+    if (node.sourceCodeLocation && node.sourceCodeLocation.startOffset !== undefined) {
+      const startOffset = node.sourceCodeLocation.startOffset
+      // Find the tag name in original HTML (after '<')
+      const tagMatch = originalHtml.slice(startOffset).match(/^<([a-zA-Z][a-zA-Z0-9._-]*)/)
+      if (tagMatch && tagMatch[1]) {
+        originalTag = tagMatch[1]
+      }
+    }
+
+    // INV005: <template> tags are forbidden — use compound components instead
+    if (tag === 'template') {
+      throw new InvariantError(
+        INVARIANT.TEMPLATE_TAG,
+        `<template> tags are forbidden in Zenith. Use compound components (e.g., Card.Header) for named slots.`,
+        'Named slots use compound component pattern (Card.Header), not <template> tags.',
+        'unknown', // filePath passed to parseTemplate
+        location.line,
+        location.column
+      )
+    }
+
     // Parse attributes
     const attributes: AttributeIR[] = []
     if (node.attrs) {
@@ -372,6 +397,18 @@ function parseNode(
             column: node.sourceCodeLocation.attrs[attr.name].startCol || location.column
           }
           : location
+
+        // INV006: slot="" attributes are forbidden — use compound components instead
+        if (attr.name === 'slot') {
+          throw new InvariantError(
+            INVARIANT.SLOT_ATTRIBUTE,
+            `slot="${attr.value || ''}" attribute is forbidden. Use compound components (e.g., Card.Header) for named slots.`,
+            'Named slots use compound component pattern (Card.Header), not slot="" attributes.',
+            'unknown',
+            attrLocation.line,
+            attrLocation.column
+          )
+        }
 
         // Handle :attr="expr" syntax (colon-prefixed reactive attributes)
         let attrName = attr.name
@@ -474,13 +511,29 @@ function parseNode(
       }
     }
 
-    return {
-      type: 'element',
-      tag,
-      attributes,
-      children,
-      location,
-      loopContext: elementLoopContext  // Phase 7: Inherited loop context for child processing
+    // Check if this is a custom component (starts with uppercase)
+    const isComponent = originalTag.length > 0 && originalTag[0] === originalTag[0].toUpperCase()
+
+    if (isComponent) {
+      // This is a component node
+      return {
+        type: 'component',
+        name: originalTag,
+        attributes,
+        children,
+        location,
+        loopContext: elementLoopContext
+      }
+    } else {
+      // This is a regular HTML element
+      return {
+        type: 'element',
+        tag,
+        attributes,
+        children,
+        location,
+        loopContext: elementLoopContext
+      }
     }
   }
 
@@ -517,9 +570,13 @@ export function parseTemplate(html: string, filePath: string): TemplateIR {
       }
     }
 
+    // Phase 8: Lower JSX expressions to structural fragments
+    // This transforms expressions like {cond ? <A /> : <B />} into ConditionalFragmentNode
+    const loweredNodes = lowerFragments(nodes, filePath, expressions)
+
     return {
       raw: templateHtml,
-      nodes,
+      nodes: loweredNodes,
       expressions
     }
   } catch (error: any) {

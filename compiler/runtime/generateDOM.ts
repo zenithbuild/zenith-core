@@ -4,7 +4,16 @@
  * Generates JavaScript code that creates DOM elements from template nodes
  */
 
-import type { TemplateNode, ElementNode, TextNode, ExpressionNode, ExpressionIR } from '../ir/types'
+import type {
+  TemplateNode,
+  ElementNode,
+  TextNode,
+  ExpressionNode,
+  ExpressionIR,
+  ConditionalFragmentNode,
+  OptionalFragmentNode,
+  LoopFragmentNode
+} from '../ir/types'
 
 /**
  * Generate DOM creation code from a template node
@@ -94,6 +103,98 @@ ${indent}}\n`
       }
 
       return { code, varName }
+    }
+
+    case 'component': {
+      // Components should be resolved before reaching DOM generation
+      // If we get here, it means component resolution failed
+      throw new Error(`[Zenith] Unresolved component: ${(node as any).name}. Components must be resolved before DOM generation.`)
+    }
+
+    case 'conditional-fragment': {
+      // Conditional fragment: {condition ? <A /> : <B />}
+      // Both branches are precompiled, runtime toggles visibility
+      const condNode = node as ConditionalFragmentNode
+      const containerVar = varName
+      const conditionId = `cond_${varCounter.count++}`
+
+      let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
+      code += `${indent}const ${conditionId}_result = (function() { with (state) { return ${condNode.condition}; } })();\n`
+
+      // Generate consequent branch
+      code += `${indent}if (${conditionId}_result) {\n`
+      for (const child of condNode.consequent) {
+        const childResult = generateDOMCode(child, expressions, indent + '  ', varCounter)
+        code += `${childResult.code}\n`
+        code += `${indent}  ${containerVar}.appendChild(${childResult.varName});\n`
+      }
+      code += `${indent}} else {\n`
+
+      // Generate alternate branch
+      for (const child of condNode.alternate) {
+        const childResult = generateDOMCode(child, expressions, indent + '  ', varCounter)
+        code += `${childResult.code}\n`
+        code += `${indent}  ${containerVar}.appendChild(${childResult.varName});\n`
+      }
+      code += `${indent}}\n`
+
+      return { code, varName: containerVar }
+    }
+
+    case 'optional-fragment': {
+      // Optional fragment: {condition && <A />}
+      // Fragment is precompiled, runtime mounts/unmounts based on condition
+      const optNode = node as OptionalFragmentNode
+      const containerVar = varName
+      const conditionId = `opt_${varCounter.count++}`
+
+      let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
+      code += `${indent}const ${conditionId}_result = (function() { with (state) { return ${optNode.condition}; } })();\n`
+      code += `${indent}if (${conditionId}_result) {\n`
+
+      for (const child of optNode.fragment) {
+        const childResult = generateDOMCode(child, expressions, indent + '  ', varCounter)
+        code += `${childResult.code}\n`
+        code += `${indent}  ${containerVar}.appendChild(${childResult.varName});\n`
+      }
+
+      code += `${indent}}\n`
+
+      return { code, varName: containerVar }
+    }
+
+    case 'loop-fragment': {
+      // Loop fragment: {items.map(item => <li>...</li>)}
+      // Body is precompiled once, instantiated per item at runtime
+      const loopNode = node as LoopFragmentNode
+      const containerVar = varName
+      const loopId = `loop_${varCounter.count++}`
+
+      let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
+      code += `${indent}const ${loopId}_items = (function() { with (state) { return ${loopNode.source}; } })() || [];\n`
+
+      // Loop parameters
+      const itemVar = loopNode.itemVar
+      const indexVar = loopNode.indexVar || `${loopId}_idx`
+
+      code += `${indent}${loopId}_items.forEach(function(${itemVar}, ${indexVar}) {\n`
+
+      // Generate loop body with loop context variables in scope
+      for (const child of loopNode.body) {
+        const childResult = generateDOMCode(child, expressions, indent + '  ', varCounter)
+        // Inject loop variables into the child code
+        let childCode = childResult.code
+        code += `${childCode}\n`
+        code += `${indent}  ${containerVar}.appendChild(${childResult.varName});\n`
+      }
+
+      code += `${indent}});\n`
+
+      return { code, varName: containerVar }
+    }
+
+    default: {
+      throw new Error(`[Zenith] Unknown node type: ${(node as any).type}`)
     }
   }
 }
