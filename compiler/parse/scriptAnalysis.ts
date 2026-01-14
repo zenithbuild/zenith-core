@@ -45,6 +45,7 @@ export function extractProps(script: string): string[] {
 
 /**
  * Transform script by removing state and prop declarations
+ * Also strips .zen imports (resolved at compile time) and other compile-time-only imports
  */
 export function transformStateDeclarations(script: string): string {
     let transformed = script
@@ -61,6 +62,13 @@ export function transformStateDeclarations(script: string): string {
 
     // Remove zenith/runtime imports
     transformed = transformed.replace(/import\s+{[^}]+}\s+from\s+['"]zenith\/runtime['"]\s*;?[ \t]*/g, '')
+
+    // Remove .zen file imports (resolved at compile time)
+    // Matches: import Name from '.../file.zen'; or import Name from '.../file.zen'
+    transformed = transformed.replace(/import\s+\w+\s+from\s+['"][^'"]*\.zen['"];?\s*/g, '')
+
+    // Remove relative imports with destructuring (components are inlined)
+    transformed = transformed.replace(/import\s+{[^}]*}\s+from\s+['"][^'"]+\.zen['"];?\s*/g, '')
 
     // Transform zenith:content imports to global lookups
     transformed = transformed.replace(

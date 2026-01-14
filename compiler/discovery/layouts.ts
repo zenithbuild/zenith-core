@@ -41,8 +41,17 @@ export function discoverLayouts(layoutsDir: string): Map<string, LayoutMetadata>
                 if (match[1]) styles.push(match[1].trim())
             }
 
-            // Extract HTML (everything except script/style)
-            let html = source.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            // Extract HTML (everything except inline scripts/style)
+            // Preserve external script tags (<script src="...">) but remove inline <script setup> blocks
+            // Use a function-based replace to check for src attribute
+            let html = source.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+                // Keep script tags with src attribute (external scripts)
+                if (attrs.includes('src=')) {
+                    return match;
+                }
+                // Remove inline scripts (those without src)
+                return '';
+            })
             html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').trim()
 
             layouts.set(name, {

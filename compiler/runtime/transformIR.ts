@@ -11,6 +11,7 @@ import { generateHydrationRuntime, generateExpressionRegistry } from './generate
 import { analyzeAllExpressions } from './dataExposure'
 import { generateNavigationRuntime } from './navigation'
 import { extractStateDeclarations, extractProps, transformStateDeclarations } from '../parse/scriptAnalysis'
+import { transformAllComponentScripts } from '../transform/componentScriptTransformer'
 
 export interface RuntimeCode {
   expressions: string  // Expression wrapper functions
@@ -70,6 +71,9 @@ export function transformIR(ir: ZenIR): RuntimeCode {
   // Transform script (remove state and prop declarations, they're handled by runtime)
   const scriptCode = transformStateDeclarations(scriptContent)
 
+  // Transform component scripts for instance-scoped execution
+  const componentScriptCode = transformAllComponentScripts(ir.componentScripts || [])
+
   // Generate complete runtime bundle
   const bundle = generateRuntimeBundle({
     expressions,
@@ -78,7 +82,8 @@ export function transformIR(ir: ZenIR): RuntimeCode {
     navigationRuntime,
     stylesCode,
     scriptCode,
-    stateInitCode
+    stateInitCode,
+    componentScriptCode  // Component factories
   })
 
   return {
@@ -103,6 +108,7 @@ function generateRuntimeBundle(parts: {
   stylesCode: string
   scriptCode: string
   stateInitCode: string
+  componentScriptCode: string  // Component factories
 }): string {
   // Extract function declarations from script code to register on window
   const functionRegistrations = extractFunctionRegistrations(parts.scriptCode)
@@ -128,6 +134,9 @@ ${functionRegistrations}
 
 ${parts.stateInitCode ? `// State initialization
 ${parts.stateInitCode}` : ''}
+
+${parts.componentScriptCode ? `// Component factories (instance-scoped)
+${parts.componentScriptCode}` : ''}
 
 // Export hydration functions
 if (typeof window !== 'undefined') {
@@ -187,9 +196,20 @@ if (typeof window !== 'undefined') {
     // Get the router outlet or body
     const container = document.querySelector('#app') || document.body;
     
-    // Hydrate with state
+    // Hydrate with state (expressions, bindings)
     if (window.__zenith_hydrate) {
       window.__zenith_hydrate(state, {}, {}, {}, container);
+    }
+    
+    // Hydrate components by discovering data-zen-component markers
+    // This is the ONLY place component instantiation happens - driven by DOM markers
+    if (window.__zenith && window.__zenith.hydrateComponents) {
+      window.__zenith.hydrateComponents(container);
+    }
+    
+    // Trigger page-level mount lifecycle
+    if (window.__zenith && window.__zenith.triggerMount) {
+      window.__zenith.triggerMount();
     }
   }
   

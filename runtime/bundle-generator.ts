@@ -283,6 +283,144 @@ export function generateBundleJS(): string {
   }
   
   // ============================================
+  // Component Instance System
+  // ============================================
+  // Each component instance gets isolated state, effects, and lifecycles
+  // Instances are tied to DOM elements via hydration markers
+  
+  const componentRegistry = {};
+  
+  function createComponentInstance(componentName, rootElement) {
+    const instanceMountCallbacks = [];
+    const instanceUnmountCallbacks = [];
+    const instanceEffects = [];
+    let instanceMounted = false;
+    
+    return {
+      // DOM reference
+      root: rootElement,
+      
+      // Lifecycle hooks (instance-scoped)
+      onMount: function(fn) {
+        if (instanceMounted) {
+          const cleanup = fn();
+          if (typeof cleanup === 'function') {
+            instanceUnmountCallbacks.push(cleanup);
+          }
+        } else {
+          instanceMountCallbacks.push(fn);
+        }
+      },
+      onUnmount: function(fn) {
+        instanceUnmountCallbacks.push(fn);
+      },
+      
+      // Reactivity (uses global primitives but tracks for cleanup)
+      signal: function(initial) {
+        return zenSignal(initial);
+      },
+      state: function(initial) {
+        return zenState(initial);
+      },
+      ref: function(initial) {
+        return zenRef(initial);
+      },
+      effect: function(fn) {
+        const cleanup = zenEffect(fn);
+        instanceEffects.push(cleanup);
+        return cleanup;
+      },
+      memo: function(fn) {
+        return zenMemo(fn);
+      },
+      batch: function(fn) {
+        zenBatch(fn);
+      },
+      untrack: function(fn) {
+        return zenUntrack(fn);
+      },
+      
+      // Lifecycle execution
+      mount: function() {
+        instanceMounted = true;
+        for (let i = 0; i < instanceMountCallbacks.length; i++) {
+          try {
+            const cleanup = instanceMountCallbacks[i]();
+            if (typeof cleanup === 'function') {
+              instanceUnmountCallbacks.push(cleanup);
+            }
+          } catch(e) {
+            console.error('[Zenith] Component mount error:', componentName, e);
+          }
+        }
+        instanceMountCallbacks.length = 0;
+      },
+      unmount: function() {
+        instanceMounted = false;
+        // Cleanup effects
+        for (let i = 0; i < instanceEffects.length; i++) {
+          try { 
+            if (typeof instanceEffects[i] === 'function') instanceEffects[i](); 
+          } catch(e) { 
+            console.error('[Zenith] Effect cleanup error:', e); 
+          }
+        }
+        instanceEffects.length = 0;
+        // Run unmount callbacks
+        for (let i = 0; i < instanceUnmountCallbacks.length; i++) {
+          try { instanceUnmountCallbacks[i](); } catch(e) { console.error('[Zenith] Unmount error:', e); }
+        }
+        instanceUnmountCallbacks.length = 0;
+      }
+    };
+  }
+  
+  function defineComponent(name, factory) {
+    componentRegistry[name] = factory;
+  }
+  
+  function instantiateComponent(name, props, rootElement) {
+    const factory = componentRegistry[name];
+    if (!factory) {
+      console.warn('[Zenith] Component not found:', name);
+      return null;
+    }
+    return factory(props, rootElement);
+  }
+  
+  /**
+   * Hydrate components by discovering data-zen-component markers
+   * This is the ONLY place component instantiation should happen
+   */
+  function hydrateComponents(container) {
+    const componentElements = container.querySelectorAll('[data-zen-component]');
+    
+    for (let i = 0; i < componentElements.length; i++) {
+      const el = componentElements[i];
+      const componentName = el.getAttribute('data-zen-component');
+      
+      // Skip if already hydrated
+      if (el.__zenith_instance) continue;
+      
+      // Parse props from data attribute if present
+      const propsJson = el.getAttribute('data-zen-props') || '{}';
+      let props = {};
+      try {
+        props = JSON.parse(propsJson);
+      } catch(e) {
+        console.warn('[Zenith] Invalid props JSON for', componentName);
+      }
+      
+      // Instantiate component and bind to DOM element
+      const instance = instantiateComponent(componentName, props, el);
+      
+      if (instance) {
+        el.__zenith_instance = instance;
+      }
+    }
+  }
+  
+  // ============================================
   // Expression Registry & Hydration
   // ============================================
   
@@ -701,8 +839,13 @@ export function generateBundleJS(): string {
     triggerUnmount: triggerUnmount,
     // Hydration
     hydrate: zenithHydrate,
+    hydrateComponents: hydrateComponents,  // Marker-driven component instantiation
     registerExpression: registerExpression,
-    getExpression: getExpression
+    getExpression: getExpression,
+    // Component instance system
+    createInstance: createComponentInstance,
+    defineComponent: defineComponent,
+    instantiate: instantiateComponent
   };
   
   // Expose with zen* prefix for direct usage

@@ -5,19 +5,19 @@
  * Uses compound component pattern for named slots (Card.Header, Card.Footer).
  */
 
-import type { TemplateNode, ComponentNode, ElementNode, ZenIR, LoopContext } from '../ir/types'
+import type { TemplateNode, ComponentNode, ElementNode, ZenIR, LoopContext, ComponentScriptIR } from '../ir/types'
 import type { ComponentMetadata } from '../discovery/componentDiscovery'
 import { extractSlotsFromChildren, resolveSlots } from './slotResolver'
 import { throwOrphanCompoundError, throwUnresolvedComponentError } from '../validate/invariants'
 
-// Track which components have been used (for style collection)
+// Track which components have been used (for style and script collection)
 const usedComponents = new Set<string>()
 
 /**
  * Resolve all component nodes in a template IR
  * 
  * Recursively replaces ComponentNode instances with their resolved templates
- * Also collects styles from used components and adds them to the IR
+ * Also collects styles AND scripts from used components and adds them to the IR
  */
 export function resolveComponentsInIR(
     ir: ZenIR,
@@ -35,6 +35,17 @@ export function resolveComponentsInIR(
         .filter((meta): meta is ComponentMetadata => meta !== undefined && meta.styles.length > 0)
         .flatMap(meta => meta.styles.map(raw => ({ raw })))
 
+    // Collect scripts from all used components (for bundling)
+    const componentScripts: ComponentScriptIR[] = Array.from(usedComponents)
+        .map(name => components.get(name))
+        .filter((meta): meta is ComponentMetadata => meta !== undefined && meta.script !== null)
+        .map(meta => ({
+            name: meta.name,
+            script: meta.script!,
+            props: meta.props,
+            scriptAttributes: meta.scriptAttributes || {}
+        }))
+
     return {
         ...ir,
         template: {
@@ -42,7 +53,9 @@ export function resolveComponentsInIR(
             nodes: resolvedNodes
         },
         // Merge component styles with existing page styles
-        styles: [...ir.styles, ...componentStyles]
+        styles: [...ir.styles, ...componentStyles],
+        // Add component scripts for bundling
+        componentScripts: [...(ir.componentScripts || []), ...componentScripts]
     }
 }
 
@@ -192,11 +205,12 @@ function resolveComponent(
     const resolvedTemplate = resolveSlots(templateNodes, resolvedSlots)
 
     // Forward attributes from component usage to the root element
-    // This ensures onclick, class, and other attributes are preserved
+    // Also adds data-zen-component marker for hydration-driven instantiation
     const forwardedTemplate = forwardAttributesToRoot(
         resolvedTemplate,
         componentNode.attributes,
-        componentNode.loopContext
+        componentNode.loopContext,
+        componentMeta.hasScript ? componentName : undefined  // Only mark if component has script
     )
 
     // Recursively resolve any nested components in the resolved template
@@ -210,16 +224,16 @@ function resolveComponent(
  * 
  * When using <Button onclick="increment">Text</Button>,
  * the onclick should be applied to the <button> element in Button.zen template.
+ * 
+ * Also adds data-zen-component marker if componentName is provided,
+ * enabling hydration-driven instantiation.
  */
 function forwardAttributesToRoot(
     nodes: TemplateNode[],
     attributes: ComponentNode['attributes'],
-    loopContext?: LoopContext
+    loopContext?: LoopContext,
+    componentName?: string  // If provided, adds hydration marker
 ): TemplateNode[] {
-    if (attributes.length === 0) {
-        return nodes
-    }
-
     // Find the first non-text element (the root element)
     const rootIndex = nodes.findIndex(n => n.type === 'element')
     if (rootIndex === -1) {
@@ -228,10 +242,19 @@ function forwardAttributesToRoot(
 
     const root = nodes[rootIndex] as ElementNode
 
-    // Merge attributes: component usage attributes override template defaults
-    // Also preserve the parent's loopContext on forwarded attributes
+    // Start with existing attributes
     const mergedAttributes = [...root.attributes]
 
+    // Add component hydration marker if this component has a script
+    if (componentName) {
+        mergedAttributes.push({
+            name: 'data-zen-component',
+            value: componentName,
+            location: { line: 0, column: 0 }
+        })
+    }
+
+    // Forward attributes from component usage
     for (const attr of attributes) {
         const existingIndex = mergedAttributes.findIndex(a => a.name === attr.name)
 

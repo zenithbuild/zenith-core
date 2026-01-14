@@ -26,6 +26,8 @@ export interface ComponentMetadata {
     slots: SlotDefinition[]
     props: string[]       // Declared props
     styles: string[]      // Raw CSS from <style> blocks
+    script: string | null         // Raw script content for bundling
+    scriptAttributes: Record<string, string> | null  // Script attributes (setup, lang)
     hasScript: boolean
     hasStyles: boolean
 }
@@ -112,6 +114,8 @@ function parseComponentFile(filePath: string): ComponentMetadata | null {
         slots,
         props,
         styles,
+        script: ir.script?.raw || null,                    // Store raw script content
+        scriptAttributes: ir.script?.attributes || null,   // Store script attributes
         hasScript: ir.script !== null,
         hasStyles: ir.styles.length > 0
     }

@@ -6,11 +6,23 @@
  * without any runtime execution or transformation.
  */
 
+/**
+ * Component Script IR - represents a component's script block
+ * Used for collecting and bundling component scripts
+ */
+export type ComponentScriptIR = {
+  name: string                           // Component name (e.g., 'HeroSection')
+  script: string                         // Raw script content
+  props: string[]                        // Declared props
+  scriptAttributes: Record<string, string>  // Script attributes (setup, lang)
+}
+
 export type ZenIR = {
   filePath: string
   template: TemplateIR
   script: ScriptIR | null
   styles: StyleIR[]
+  componentScripts?: ComponentScriptIR[]  // Scripts from used components
 }
 
 export type TemplateIR = {

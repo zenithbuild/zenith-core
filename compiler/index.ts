@@ -53,6 +53,7 @@ export function compileZenSource(
     filePath,
     template,
     script,
+    // componentScripts: [],
     styles
   }
 

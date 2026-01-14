@@ -22,10 +22,18 @@ function generateExpressionId(): string {
 
 /**
  * Strip script and style blocks from HTML before parsing
+ * Preserves external script tags (<script src="...">) but removes inline scripts
  */
 function stripBlocks(html: string): string {
-  // Remove script blocks
-  let stripped = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  // Remove only inline script blocks (those WITHOUT src attribute), preserve external scripts
+  let stripped = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+    // Keep script tags with src attribute (external scripts)
+    if (attrs.includes('src=')) {
+      return match;
+    }
+    // Remove inline scripts (those without src)
+    return '';
+  })
   // Remove style blocks
   stripped = stripped.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
   return stripped
