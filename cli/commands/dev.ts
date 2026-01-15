@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { serve, type ServerWebSocket } from 'bun'
 import { requireProject } from '../utils/project'
 import * as logger from '../utils/logger'
@@ -28,6 +29,53 @@ interface CompiledPage {
 }
 
 const pageCache = new Map<string, CompiledPage>()
+
+/**
+ * Bundle page script using Bun's bundler to resolve npm imports at compile time.
+ * This allows ES module imports like `import { gsap } from 'gsap'` to work.
+ */
+async function bundlePageScript(script: string, projectRoot: string): Promise<string> {
+    // If no import statements, return as-is
+    if (!script.includes('import ')) {
+        return script
+    }
+
+    // Create a temporary file for bundling
+    const tempDir = os.tmpdir()
+    const tempFile = path.join(tempDir, `zenith-bundle-${Date.now()}.js`)
+
+    try {
+        // Write script to temp file
+        fs.writeFileSync(tempFile, script, 'utf-8')
+
+        // Use Bun.build to bundle with npm resolution
+        const result = await Bun.build({
+            entrypoints: [tempFile],
+            target: 'browser',
+            format: 'esm',
+            minify: false,
+            // Resolve modules from the project's node_modules
+            external: [], // Bundle everything
+        })
+
+        if (!result.success || !result.outputs[0]) {
+            console.error('[Zenith] Bundle errors:', result.logs)
+            return script // Fall back to original
+        }
+
+        // Get the bundled output
+        const bundledCode = await result.outputs[0].text()
+        return bundledCode
+    } catch (error: any) {
+        console.error('[Zenith] Failed to bundle page script:', error.message)
+        return script // Fall back to original
+    } finally {
+        // Clean up temp file
+        try {
+            fs.unlinkSync(tempFile)
+        } catch { }
+    }
+}
 
 export async function dev(options: DevOptions = {}): Promise<void> {
     const project = requireProject()
@@ -105,7 +153,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
     /**
      * Compile a .zen page in memory
      */
-    function compilePageInMemory(pagePath: string): CompiledPage | null {
+    async function compilePageInMemory(pagePath: string): Promise<CompiledPage | null> {
         try {
             const layoutsDir = path.join(pagesDir, '../layouts')
             const componentsDir = path.join(pagesDir, '../components')
@@ -117,16 +165,19 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 
             if (layoutToUse) processedSource = processLayout(source, layoutToUse)
 
-            const result = compileZenSource(processedSource, pagePath, {
+            const result = await compileZenSource(processedSource, pagePath, {
                 componentsDir: fs.existsSync(componentsDir) ? componentsDir : undefined
             })
             if (!result.finalized) throw new Error('Compilation failed')
 
             const routeDef = generateRouteDefinition(pagePath, pagesDir)
 
+            // Bundle the script to resolve npm imports at compile time
+            const bundledScript = await bundlePageScript(result.finalized.js, rootDir)
+
             return {
                 html: result.finalized.html,
-                script: result.finalized.js,
+                script: bundledScript,
                 styles: result.finalized.styles,
                 route: routeDef.path,
                 lastModified: Date.now()
@@ -189,7 +240,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 
     const server = serve({
         port,
-        fetch(req, server) {
+        async fetch(req, server) {
             const startTime = performance.now()
             const url = new URL(req.url)
             const pathname = url.pathname
@@ -246,7 +297,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
                 const stat = fs.statSync(pagePath)
 
                 if (!cached || stat.mtimeMs > cached.lastModified) {
-                    cached = compilePageInMemory(pagePath) || undefined
+                    cached = await compilePageInMemory(pagePath) || undefined
                     if (cached) pageCache.set(pagePath, cached)
                 }
                 const compileEnd = performance.now()
@@ -327,7 +378,8 @@ function generateDevHTML(page: CompiledPage, contentData: any = {}): string {
     // Escape </script> sequences in JSON content to prevent breaking the script tag
     const contentJson = JSON.stringify(contentData).replace(/<\//g, '<\\/')
     const contentTag = `<script>window.__ZENITH_CONTENT__ = ${contentJson};</script>`
-    const scriptTag = `<script>\n${page.script}\n</script>`
+    // Use type="module" to support ES6 imports from npm packages
+    const scriptTag = `<script type="module">\n${page.script}\n</script>`
     const allScripts = `${runtimeTag}\n${contentTag}\n${scriptTag}`
     return page.html.includes('</body>')
         ? page.html.replace('</body>', `${allScripts}\n</body>`)
