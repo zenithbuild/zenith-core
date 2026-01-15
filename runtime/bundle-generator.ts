@@ -880,9 +880,7 @@ export function generateBundleJS(): string {
   // SPA Router Runtime
   // ============================================
   
-  (function() {
-    'use strict';
-    
+  // Router state
     // Current route state
     var currentRoute = {
       path: '/',
@@ -1096,6 +1094,18 @@ export function generateBundleJS(): string {
         return;
       }
       
+      // Dev mode: If no route manifest is loaded, use browser navigation
+      // This allows ZenLink to work in dev server where pages are served fresh
+      if (routeManifest.length === 0) {
+        var url = normalizedPath + (Object.keys(query).length ? '?' + new URLSearchParams(query) : '');
+        if (options.replace) {
+          location.replace(url);
+        } else {
+          location.href = url;
+        }
+        return;
+      }
+      
       resolveAndRender(path, query, true, options.replace || false);
     }
     
@@ -1166,19 +1176,19 @@ export function generateBundleJS(): string {
       );
     }
     
-    // Expose router API globally
-    global.__zenith_router = {
-      navigate: navigate,
-      getRoute: getRoute,
-      onRouteChange: onRouteChange,
-      isActive: isActive,
-      prefetch: prefetch,
-      initRouter: initRouter
-    };
-    
-    // Also expose navigate directly for convenience
-    global.navigate = navigate;
-  })();
+  // Expose router API globally
+  global.__zenith_router = {
+    navigate: navigate,
+    getRoute: getRoute,
+    onRouteChange: onRouteChange,
+    isActive: isActive,
+    prefetch: prefetch,
+    initRouter: initRouter
+  };
+  
+  // Also expose navigate directly for convenience
+  global.navigate = navigate;
+  
   
   // ============================================
   // HMR Client (Development Only)

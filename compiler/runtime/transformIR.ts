@@ -9,7 +9,7 @@ import { generateExpressionWrappers } from './wrapExpression'
 import { generateDOMFunction } from './generateDOM'
 import { generateHydrationRuntime, generateExpressionRegistry } from './generateHydrationBundle'
 import { analyzeAllExpressions } from './dataExposure'
-import { generateNavigationRuntime } from './navigation'
+// Legacy navigation runtime removed - router now provided by @zenithbuild/router via bundle-generator.ts
 import { extractStateDeclarations, extractProps, transformStateDeclarations } from '../parse/scriptAnalysis'
 import { transformAllComponentScripts, emitImports } from '../transform/componentScriptTransformer'
 
@@ -52,8 +52,8 @@ export async function transformIR(ir: ZenIR): Promise<RuntimeCode> {
   // Generate Phase 5 hydration runtime
   const hydrationRuntime = generateHydrationRuntime()
 
-  // Generate Phase 7 navigation runtime
-  const navigationRuntime = generateNavigationRuntime()
+  // Phase 7 navigation runtime removed - router is provided by shared runtime bundle
+  const navigationRuntime = '' // No longer inlined per-page
 
   // Generate expression registry initialization
   const expressionRegistry = generateExpressionRegistry(ir.template.expressions)
