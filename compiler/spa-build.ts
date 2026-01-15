@@ -43,11 +43,11 @@ interface SPABuildOptions {
 /**
  * Compile a single page file
  */
-function compilePage(
+async function compilePage(
   pagePath: string,
   pagesDir: string,
   baseDir: string = process.cwd()
-): CompiledPage {
+): Promise<CompiledPage> {
   try {
     const layoutsDir = path.join(baseDir, 'app', 'layouts')
     const layouts = discoverLayouts(layoutsDir)
@@ -63,7 +63,7 @@ function compilePage(
     }
 
     // Use new compiler pipeline on the processed source
-    const result = compileZenSource(processedSource, pagePath)
+    const result = await compileZenSource(processedSource, pagePath)
 
     if (!result.finalized) {
       throw new Error(`Compilation failed: No finalized output`)
@@ -843,7 +843,7 @@ function generateHTMLShell(
 /**
  * Build SPA from pages directory
  */
-export function buildSPA(options: SPABuildOptions): void {
+export async function buildSPA(options: SPABuildOptions): Promise<void> {
   const { pagesDir, outDir, baseDir } = options
 
   // Clean output directory
@@ -870,7 +870,7 @@ export function buildSPA(options: SPABuildOptions): void {
     console.log(`[Zenith Build] Compiling: ${path.relative(pagesDir, pageFile)}`)
 
     try {
-      const compiled = compilePage(pageFile, pagesDir)
+      const compiled = await compilePage(pageFile, pagesDir)
       compiledPages.push(compiled)
     } catch (error) {
       console.error(`[Zenith Build] Error compiling ${pageFile}:`, error)

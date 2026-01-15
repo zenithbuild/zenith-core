@@ -39,10 +39,10 @@ export interface FinalizedOutput {
  * @param compiled - Compiled template from Phase 2
  * @returns Finalized output
  */
-export function finalizeOutput(
+export async function finalizeOutput(
   ir: ZenIR,
   compiled: CompiledTemplate
-): FinalizedOutput {
+): Promise<FinalizedOutput> {
   const errors: string[] = []
 
   // 1. Validate all expressions (Phase 8/9/10 requirement)
@@ -77,7 +77,7 @@ export function finalizeOutput(
   // 3. Generate runtime code
   let runtimeCode: RuntimeCode
   try {
-    runtimeCode = transformIR(ir)
+    runtimeCode = await transformIR(ir)
   } catch (error: any) {
     errors.push(`Runtime generation failed: ${error.message}`)
     return {
@@ -176,11 +176,11 @@ function verifyNoRawExpressions(html: string, filePath: string): string[] {
  * 
  * Throws if validation fails (build must fail on errors)
  */
-export function finalizeOutputOrThrow(
+export async function finalizeOutputOrThrow(
   ir: ZenIR,
   compiled: CompiledTemplate
-): FinalizedOutput {
-  const output = finalizeOutput(ir, compiled)
+): Promise<FinalizedOutput> {
+  const output = await finalizeOutput(ir, compiled)
 
   if (output.hasErrors) {
     const errorMessage = output.errors.join('\n\n')

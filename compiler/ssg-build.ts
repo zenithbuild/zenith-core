@@ -65,11 +65,11 @@ export interface SSGBuildOptions {
 /**
  * Compile a single page file for SSG output
  */
-function compilePage(
+async function compilePage(
     pagePath: string,
     pagesDir: string,
     baseDir: string = process.cwd()
-): CompiledPage {
+): Promise<CompiledPage> {
     const source = fs.readFileSync(pagePath, 'utf-8')
 
     // Analyze page requirements
@@ -88,7 +88,7 @@ function compilePage(
     }
 
     // Compile with new pipeline
-    const result = compileZenSource(processedSource, pagePath)
+    const result = await compileZenSource(processedSource, pagePath)
 
     if (!result.finalized) {
         throw new Error(`Compilation failed for ${pagePath}: No finalized output`)
@@ -239,7 +239,7 @@ ${page.pageScript}
 /**
  * Build all pages using SSG approach
  */
-export function buildSSG(options: SSGBuildOptions): void {
+export async function buildSSG(options: SSGBuildOptions): Promise<void> {
     const { pagesDir, outDir, baseDir = path.dirname(pagesDir) } = options
     const contentDir = path.join(baseDir, 'content')
     const contentData = loadContent(contentDir)
@@ -275,7 +275,7 @@ export function buildSSG(options: SSGBuildOptions): void {
         console.log(`   Compiling: ${relativePath}`)
 
         try {
-            const compiled = compilePage(pageFile, pagesDir, baseDir)
+            const compiled = await compilePage(pageFile, pagesDir, baseDir)
             compiledPages.push(compiled)
 
             if (compiled.analysis.needsHydration) {
@@ -356,7 +356,7 @@ export function buildSSG(options: SSGBuildOptions): void {
         const custom404Path = path.join(pagesDir, candidate)
         if (fs.existsSync(custom404Path)) {
             try {
-                const compiled = compilePage(custom404Path, pagesDir, baseDir)
+                const compiled = await compilePage(custom404Path, pagesDir, baseDir)
                 const html = generatePageHTML(compiled, globalStyles, contentData)
                 fs.writeFileSync(path.join(outDir, '404.html'), html)
                 console.log('📦 Generated 404.html (custom)')

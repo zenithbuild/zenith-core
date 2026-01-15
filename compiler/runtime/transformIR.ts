@@ -4,14 +4,14 @@
  * Phase 4: Transform ZenIR into runtime-ready JavaScript code with full reactivity
  */
 
-import type { ZenIR } from '../ir/types'
+import type { ZenIR, ScriptImport } from '../ir/types'
 import { generateExpressionWrappers } from './wrapExpression'
 import { generateDOMFunction } from './generateDOM'
 import { generateHydrationRuntime, generateExpressionRegistry } from './generateHydrationBundle'
 import { analyzeAllExpressions } from './dataExposure'
 import { generateNavigationRuntime } from './navigation'
 import { extractStateDeclarations, extractProps, transformStateDeclarations } from '../parse/scriptAnalysis'
-import { transformAllComponentScripts } from '../transform/componentScriptTransformer'
+import { transformAllComponentScripts, emitImports } from '../transform/componentScriptTransformer'
 
 export interface RuntimeCode {
   expressions: string  // Expression wrapper functions
@@ -26,7 +26,7 @@ export interface RuntimeCode {
 /**
  * Transform ZenIR into runtime JavaScript code
  */
-export function transformIR(ir: ZenIR): RuntimeCode {
+export async function transformIR(ir: ZenIR): Promise<RuntimeCode> {
   // Phase 6: Analyze expression dependencies for explicit data exposure
   const expressionDependencies = analyzeAllExpressions(
     ir.template.expressions,
@@ -71,8 +71,8 @@ export function transformIR(ir: ZenIR): RuntimeCode {
   // Transform script (remove state and prop declarations, they're handled by runtime)
   const scriptCode = transformStateDeclarations(scriptContent)
 
-  // Transform component scripts for instance-scoped execution
-  const componentScriptCode = transformAllComponentScripts(ir.componentScripts || [])
+  // Transform component scripts for instance-scoped execution (async)
+  const componentScriptResult = await transformAllComponentScripts(ir.componentScripts || [])
 
   // Generate complete runtime bundle
   const bundle = generateRuntimeBundle({
@@ -83,7 +83,8 @@ export function transformIR(ir: ZenIR): RuntimeCode {
     stylesCode,
     scriptCode,
     stateInitCode,
-    componentScriptCode  // Component factories
+    componentScriptCode: componentScriptResult.code,
+    npmImports: componentScriptResult.imports
   })
 
   return {
@@ -109,14 +110,20 @@ function generateRuntimeBundle(parts: {
   scriptCode: string
   stateInitCode: string
   componentScriptCode: string  // Component factories
+  npmImports: ScriptImport[]   // Structured npm imports from component scripts
 }): string {
   // Extract function declarations from script code to register on window
   const functionRegistrations = extractFunctionRegistrations(parts.scriptCode)
 
+  // Generate npm imports header (hoisted, deduplicated, deterministic)
+  const npmImportsHeader = parts.npmImports.length > 0
+    ? `// NPM Imports (hoisted from component scripts)\n${emitImports(parts.npmImports)}\n\n`
+    : ''
+
   return `// Zenith Runtime Bundle (Phase 5)
 // Generated at compile time - no .zen parsing in browser
 
-${parts.expressions}
+${npmImportsHeader}${parts.expressions}
 
 ${parts.expressionRegistry}
 

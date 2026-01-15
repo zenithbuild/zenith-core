@@ -12,11 +12,11 @@ import type { FinalizedOutput } from './finalize/finalizeOutput'
 /**
  * Compile a .zen file into IR and CompiledTemplate
  */
-export function compileZen(filePath: string): {
+export async function compileZen(filePath: string): Promise<{
   ir: ZenIR
   compiled: CompiledTemplate
   finalized?: FinalizedOutput
-} {
+}> {
   const source = readFileSync(filePath, 'utf-8')
   return compileZenSource(source, filePath)
 }
@@ -24,17 +24,17 @@ export function compileZen(filePath: string): {
 /**
  * Compile Zen source string into IR and CompiledTemplate
  */
-export function compileZenSource(
+export async function compileZenSource(
   source: string,
   filePath: string,
   options?: {
     componentsDir?: string
   }
-): {
+): Promise<{
   ir: ZenIR
   compiled: CompiledTemplate
   finalized?: FinalizedOutput
-} {
+}> {
   // Parse template
   const template = parseTemplate(source, filePath)
 
@@ -42,7 +42,7 @@ export function compileZenSource(
   const script = parseScript(source)
 
   // Parse styles
-  const styleRegex = /\u003cstyle[^\u003e]*\u003e([\s\S]*?)\u003c\/style\u003e/gi
+  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi
   const styles: StyleIR[] = []
   let match
   while ((match = styleRegex.exec(source)) !== null) {
@@ -74,9 +74,10 @@ export function compileZenSource(
   const compiled = transformTemplate(ir)
 
   try {
-    const finalized = finalizeOutputOrThrow(ir, compiled)
+    const finalized = await finalizeOutputOrThrow(ir, compiled)
     return { ir, compiled, finalized }
   } catch (error: any) {
     throw new Error(`Failed to finalize output for ${filePath}:\\n${error.message}`)
   }
 }
+
