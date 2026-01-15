@@ -71,8 +71,8 @@ export async function transformIR(ir: ZenIR): Promise<RuntimeCode> {
   // Transform script (remove state and prop declarations, they're handled by runtime)
   const scriptCode = transformStateDeclarations(scriptContent)
 
-  // Transform component scripts for instance-scoped execution (async)
-  const componentScriptResult = await transformAllComponentScripts(ir.componentScripts || [])
+  // Transform component scripts for instance-scoped execution (synchronous - Acorn)
+  const componentScriptResult = transformAllComponentScripts(ir.componentScripts || [])
 
   // Generate complete runtime bundle
   const bundle = generateRuntimeBundle({

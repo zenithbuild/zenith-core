@@ -5,24 +5,18 @@
  * Uses namespace binding pattern for cleaner output:
  *   const { signal, effect, onMount, ... } = __inst;
  * 
- * Uses es-module-lexer to parse imports:
- * - .zen imports are stripped (compile-time resolved)
- * - npm imports are extracted as structured metadata for bundling
+ * Uses Acorn AST parser for deterministic import parsing.
+ * Phase 1: Analysis only - imports are parsed and categorized.
+ * Phase 2 (bundling) happens in dev.ts.
  * 
- * IMPORTANT: No regex-based import parsing.
+ * Import handling:
+ * - .zen imports: Stripped (compile-time resolved)
+ * - npm imports: Stored as structured metadata for later bundling
  */
 
-import { init, parse } from 'es-module-lexer'
 import type { ComponentScriptIR, ScriptImport } from '../ir/types'
-
-// Initialize es-module-lexer (must be called before parsing)
-let lexerInitialized = false
-async function ensureLexerInit(): Promise<void> {
-    if (!lexerInitialized) {
-        await init
-        lexerInitialized = true
-    }
-}
+import { parseImports, categorizeImports } from '../parse/parseImports'
+import type { ParsedImport } from '../parse/importTypes'
 
 /**
  * Namespace bindings - destructured from the instance
@@ -58,74 +52,100 @@ export interface TransformResult {
 }
 
 /**
- * Parse and extract imports from script content using es-module-lexer
- * 
- * @param scriptContent - Raw script content
- * @returns Object with imports array and script with imports stripped
+ * Convert ParsedImport to ScriptImport for compatibility with existing IR
  */
-export async function parseAndExtractImports(scriptContent: string): Promise<{
-    imports: ScriptImport[]
-    strippedCode: string
-}> {
-    await ensureLexerInit()
+function toScriptImport(parsed: ParsedImport): ScriptImport {
+    // Build specifiers string from parsed specifiers
+    let specifiers = ''
 
-    const imports: ScriptImport[] = []
-    const [parsedImports] = parse(scriptContent)
-
-    // Sort imports by start position (descending) for safe removal
-    const sortedImports = [...parsedImports].sort((a, b) => b.ss - a.ss)
-
-    let strippedCode = scriptContent
-
-    for (const imp of sortedImports) {
-        const source = imp.n || ''  // Module specifier
-        const importStatement = scriptContent.slice(imp.ss, imp.se)
-
-        // Skip .zen file imports (compile-time resolved) - just strip them
-        if (source.endsWith('.zen')) {
-            strippedCode = strippedCode.slice(0, imp.ss) + strippedCode.slice(imp.se)
-            continue
-        }
-
-        // Skip relative imports (compile-time resolved) - just strip them
-        if (source.startsWith('./') || source.startsWith('../')) {
-            strippedCode = strippedCode.slice(0, imp.ss) + strippedCode.slice(imp.se)
-            continue
-        }
-
-        // This is an npm/external import - extract as structured metadata
-        const isTypeOnly = importStatement.startsWith('import type')
-        const isSideEffect = imp.ss === imp.se || !importStatement.includes(' from ')
-
-        // Extract specifiers from the import statement
-        let specifiers = ''
-        if (!isSideEffect) {
-            const fromIndex = importStatement.indexOf(' from ')
-            if (fromIndex !== -1) {
-                // Get everything between 'import' (or 'import type') and 'from'
-                const start = isTypeOnly ? 'import type '.length : 'import '.length
-                specifiers = importStatement.slice(start, fromIndex).trim()
-            }
-        }
-
-        imports.push({
-            source,
-            specifiers,
-            typeOnly: isTypeOnly,
-            sideEffect: isSideEffect
-        })
-
-        // Strip the import from the code (it will be hoisted to bundle top)
-        strippedCode = strippedCode.slice(0, imp.ss) + strippedCode.slice(imp.se)
+    if (parsed.kind === 'default') {
+        specifiers = parsed.specifiers[0]?.local || ''
+    } else if (parsed.kind === 'namespace') {
+        specifiers = `* as ${parsed.specifiers[0]?.local || ''}`
+    } else if (parsed.kind === 'named') {
+        const parts = parsed.specifiers.map(s =>
+            s.imported ? `${s.imported} as ${s.local}` : s.local
+        )
+        specifiers = `{ ${parts.join(', ')} }`
+    } else if (parsed.kind === 'side-effect') {
+        specifiers = ''
     }
 
-    // Clean up any leftover empty lines from stripped imports
-    strippedCode = strippedCode.replace(/^\s*\n/gm, '')
+    return {
+        source: parsed.source,
+        specifiers,
+        typeOnly: parsed.isTypeOnly,
+        sideEffect: parsed.kind === 'side-effect'
+    }
+}
 
-    // Reverse imports array since we processed in reverse order
-    imports.reverse()
+/**
+ * Strip imports from source code based on parsed import locations
+ * 
+ * @param source - Original source code
+ * @param imports - Parsed imports to strip
+ * @returns Source with imports removed
+ */
+function stripImportsFromSource(source: string, imports: ParsedImport[]): string {
+    if (imports.length === 0) return source
 
-    return { imports, strippedCode }
+    // Sort by start position descending for safe removal
+    const sorted = [...imports].sort((a, b) => b.location.start - a.location.start)
+
+    let result = source
+    for (const imp of sorted) {
+        // Remove the import statement
+        const before = result.slice(0, imp.location.start)
+        const after = result.slice(imp.location.end)
+
+        // Also remove trailing newline if present
+        const trimmedAfter = after.startsWith('\n') ? after.slice(1) : after
+        result = before + trimmedAfter
+    }
+
+    return result
+}
+
+/**
+ * Parse and extract imports from script content using Acorn AST parser
+ * 
+ * Phase 1: Deterministic parsing - no bundling or resolution
+ * 
+ * @param scriptContent - Raw script content
+ * @param componentName - Name of the component (for error context)
+ * @returns Object with npm imports array and script with all imports stripped
+ */
+export function parseAndExtractImports(
+    scriptContent: string,
+    componentName: string = 'unknown'
+): {
+    imports: ScriptImport[]
+    strippedCode: string
+} {
+    // Parse imports using Acorn AST
+    const parseResult = parseImports(scriptContent, componentName)
+
+    if (!parseResult.success) {
+        console.warn(`[Zenith] Import parse warnings for ${componentName}:`, parseResult.errors)
+    }
+
+    // Categorize imports
+    const { zenImports, npmImports, relativeImports } = categorizeImports(parseResult.imports)
+
+    // Convert npm imports to ScriptImport format
+    const scriptImports = npmImports.map(toScriptImport)
+
+    // Strip ALL imports from source (zen, npm, and relative)
+    // - .zen imports: resolved at compile time
+    // - npm imports: will be bundled separately
+    // - relative imports: resolved at compile time
+    const allImportsToStrip = [...zenImports, ...npmImports, ...relativeImports]
+    const strippedCode = stripImportsFromSource(scriptContent, allImportsToStrip)
+
+    return {
+        imports: scriptImports,
+        strippedCode
+    }
 }
 
 /**
@@ -136,13 +156,13 @@ export async function parseAndExtractImports(scriptContent: string): Promise<{
  * @param props - Declared prop names
  * @returns TransformResult with transformed script and extracted imports
  */
-export async function transformComponentScript(
+export function transformComponentScript(
     componentName: string,
     scriptContent: string,
     props: string[]
-): Promise<TransformResult> {
-    // Parse and extract imports using es-module-lexer
-    const { imports, strippedCode } = await parseAndExtractImports(scriptContent)
+): TransformResult {
+    // Parse and extract imports using Acorn AST
+    const { imports, strippedCode } = parseAndExtractImports(scriptContent, componentName)
 
     let transformed = strippedCode
 
@@ -247,34 +267,34 @@ export function emitImports(imports: ScriptImport[]): string {
 /**
  * Transform all component scripts from collected ComponentScriptIR
  * 
+ * Now synchronous since Acorn parsing is synchronous.
+ * 
  * @param componentScripts - Array of component script IRs
  * @returns TransformAllResult with combined code and deduplicated imports
  */
-export async function transformAllComponentScripts(
+export function transformAllComponentScripts(
     componentScripts: ComponentScriptIR[]
-): Promise<TransformAllResult> {
+): TransformAllResult {
     if (!componentScripts || componentScripts.length === 0) {
         return { code: '', imports: [] }
     }
 
     const allImports: ScriptImport[] = []
 
-    const factories = await Promise.all(
-        componentScripts
-            .filter(comp => comp.script && comp.script.trim().length > 0)
-            .map(async comp => {
-                const result = await transformComponentScript(
-                    comp.name,
-                    comp.script,
-                    comp.props
-                )
+    const factories = componentScripts
+        .filter(comp => comp.script && comp.script.trim().length > 0)
+        .map(comp => {
+            const result = transformComponentScript(
+                comp.name,
+                comp.script,
+                comp.props
+            )
 
-                // Collect imports
-                allImports.push(...result.imports)
+            // Collect imports
+            allImports.push(...result.imports)
 
-                return generateComponentFactory(comp.name, result.script, comp.props)
-            })
-    )
+            return generateComponentFactory(comp.name, result.script, comp.props)
+        })
 
     return {
         code: factories.join('\n'),
