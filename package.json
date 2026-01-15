@@ -59,8 +59,10 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@types/acorn": "^6.0.4",
     "@types/marked": "^6.0.0",
     "@types/parse5": "^7.0.0",
+    "acorn": "^8.15.0",
     "es-module-lexer": "^2.0.0",
     "marked": "^17.0.1",
     "parse5": "^8.0.0",
