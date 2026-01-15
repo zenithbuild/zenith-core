@@ -18,7 +18,7 @@ import {
   discoverPages,
   generateRouteDefinition,
   routePathToRegex
-} from "../router/manifest"
+} from "@zenithbuild/router/manifest"
 
 interface CompiledPage {
   routePath: string

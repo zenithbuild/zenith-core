@@ -877,6 +877,310 @@ export function generateBundleJS(): string {
   global.slugify = slugify;
   
   // ============================================
+  // SPA Router Runtime
+  // ============================================
+  
+  (function() {
+    'use strict';
+    
+    // Current route state
+    var currentRoute = {
+      path: '/',
+      params: {},
+      query: {}
+    };
+    
+    // Route listeners
+    var routeListeners = new Set();
+    
+    // Router outlet element
+    var routerOutlet = null;
+    
+    // Page modules registry
+    var pageModules = {};
+    
+    // Route manifest
+    var routeManifest = [];
+    
+    /**
+     * Parse query string
+     */
+    function parseQueryString(search) {
+      var query = {};
+      if (!search || search === '?') return query;
+      var params = new URLSearchParams(search);
+      params.forEach(function(value, key) { query[key] = value; });
+      return query;
+    }
+    
+    /**
+     * Resolve route from pathname
+     */
+    function resolveRoute(pathname) {
+      var normalizedPath = pathname === '' ? '/' : pathname;
+      
+      for (var i = 0; i < routeManifest.length; i++) {
+        var route = routeManifest[i];
+        var match = route.regex.exec(normalizedPath);
+        if (match) {
+          var params = {};
+          for (var j = 0; j < route.paramNames.length; j++) {
+            var paramValue = match[j + 1];
+            if (paramValue !== undefined) {
+              params[route.paramNames[j]] = decodeURIComponent(paramValue);
+            }
+          }
+          return { record: route, params: params };
+        }
+      }
+      return null;
+    }
+    
+    /**
+     * Clean up previous page
+     */
+    function cleanupPreviousPage() {
+      // Trigger unmount lifecycle hooks
+      if (global.__zenith && global.__zenith.triggerUnmount) {
+        global.__zenith.triggerUnmount();
+      }
+      
+      // Remove previous page styles
+      var prevStyles = document.querySelectorAll('style[data-zen-page-style]');
+      prevStyles.forEach(function(s) { s.remove(); });
+      
+      // Clean up window properties
+      if (global.__zenith_cleanup) {
+        global.__zenith_cleanup.forEach(function(key) {
+          try { delete global[key]; } catch(e) {}
+        });
+      }
+      global.__zenith_cleanup = [];
+    }
+    
+    /**
+     * Inject styles
+     */
+    function injectStyles(styles) {
+      styles.forEach(function(content, i) {
+        var style = document.createElement('style');
+        style.setAttribute('data-zen-page-style', String(i));
+        style.textContent = content;
+        document.head.appendChild(style);
+      });
+    }
+    
+    /**
+     * Execute scripts
+     */
+    function executeScripts(scripts) {
+      scripts.forEach(function(content) {
+        try {
+          var fn = new Function(content);
+          fn();
+        } catch (e) {
+          console.error('[Zenith Router] Script error:', e);
+        }
+      });
+    }
+    
+    /**
+     * Render page
+     */
+    function renderPage(pageModule) {
+      if (!routerOutlet) {
+        console.warn('[Zenith Router] No router outlet');
+        return;
+      }
+      
+      cleanupPreviousPage();
+      routerOutlet.innerHTML = pageModule.html;
+      injectStyles(pageModule.styles);
+      executeScripts(pageModule.scripts);
+      
+      // Trigger mount lifecycle hooks after scripts are executed
+      if (global.__zenith && global.__zenith.triggerMount) {
+        global.__zenith.triggerMount();
+      }
+    }
+    
+    /**
+     * Notify listeners
+     */
+    function notifyListeners(route, prevRoute) {
+      routeListeners.forEach(function(listener) {
+        try { listener(route, prevRoute); } catch(e) {}
+      });
+    }
+    
+    /**
+     * Resolve and render
+     */
+    function resolveAndRender(path, query, updateHistory, replace) {
+      replace = replace || false;
+      var prevRoute = Object.assign({}, currentRoute);
+      var resolved = resolveRoute(path);
+      
+      if (resolved) {
+        currentRoute = {
+          path: path,
+          params: resolved.params,
+          query: query,
+          matched: resolved.record
+        };
+        
+        var pageModule = pageModules[resolved.record.path];
+        if (pageModule) {
+          renderPage(pageModule);
+        }
+      } else {
+        currentRoute = { path: path, params: {}, query: query, matched: undefined };
+        console.warn('[Zenith Router] No route matched:', path);
+        
+        // Render 404 if available
+        if (routerOutlet) {
+          routerOutlet.innerHTML = '<div style="padding: 2rem; text-align: center;"><h1>404</h1><p>Page not found</p></div>';
+        }
+      }
+      
+      if (updateHistory) {
+        var url = path + (Object.keys(query).length ? '?' + new URLSearchParams(query) : '');
+        if (replace) {
+          history.replaceState(null, '', url);
+        } else {
+          history.pushState(null, '', url);
+        }
+      }
+      
+      notifyListeners(currentRoute, prevRoute);
+      global.__zenith_route = currentRoute;
+    }
+    
+    /**
+     * Handle popstate
+     */
+    function handlePopState() {
+      resolveAndRender(
+        location.pathname,
+        parseQueryString(location.search),
+        false,
+        false
+      );
+    }
+    
+    /**
+     * Navigate (public API)
+     */
+    function navigate(to, options) {
+      options = options || {};
+      var path, query = {};
+      
+      if (to.includes('?')) {
+        var parts = to.split('?');
+        path = parts[0];
+        query = parseQueryString('?' + parts[1]);
+      } else {
+        path = to;
+      }
+      
+      if (!path.startsWith('/')) {
+        var currentDir = currentRoute.path.split('/').slice(0, -1).join('/');
+        path = currentDir + '/' + path;
+      }
+      
+      var normalizedPath = path === '' ? '/' : path;
+      var currentPath = currentRoute.path === '' ? '/' : currentRoute.path;
+      var isSamePath = normalizedPath === currentPath;
+      
+      if (isSamePath && JSON.stringify(query) === JSON.stringify(currentRoute.query)) {
+        return;
+      }
+      
+      resolveAndRender(path, query, true, options.replace || false);
+    }
+    
+    /**
+     * Get current route
+     */
+    function getRoute() {
+      return Object.assign({}, currentRoute);
+    }
+    
+    /**
+     * Subscribe to route changes
+     */
+    function onRouteChange(listener) {
+      routeListeners.add(listener);
+      return function() { routeListeners.delete(listener); };
+    }
+    
+    /**
+     * Check if path is active
+     */
+    function isActive(path, exact) {
+      if (exact) return currentRoute.path === path;
+      return currentRoute.path.startsWith(path);
+    }
+    
+    /**
+     * Prefetch a route
+     */
+    var prefetchedRoutes = new Set();
+    function prefetch(path) {
+      var normalizedPath = path === '' ? '/' : path;
+      
+      if (prefetchedRoutes.has(normalizedPath)) {
+        return Promise.resolve();
+      }
+      prefetchedRoutes.add(normalizedPath);
+      
+      var resolved = resolveRoute(normalizedPath);
+      if (!resolved) {
+        return Promise.resolve();
+      }
+      
+      // In SPA build, all modules are already loaded
+      return Promise.resolve();
+    }
+    
+    /**
+     * Initialize router
+     */
+    function initRouter(manifest, modules, outlet) {
+      routeManifest = manifest;
+      Object.assign(pageModules, modules);
+      
+      if (outlet) {
+        routerOutlet = typeof outlet === 'string' 
+          ? document.querySelector(outlet) 
+          : outlet;
+      }
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      // Initial route resolution
+      resolveAndRender(
+        location.pathname,
+        parseQueryString(location.search),
+        false
+      );
+    }
+    
+    // Expose router API globally
+    global.__zenith_router = {
+      navigate: navigate,
+      getRoute: getRoute,
+      onRouteChange: onRouteChange,
+      isActive: isActive,
+      prefetch: prefetch,
+      initRouter: initRouter
+    };
+    
+    // Also expose navigate directly for convenience
+    global.navigate = navigate;
+  })();
+  
+  // ============================================
   // HMR Client (Development Only)
   // ============================================
   

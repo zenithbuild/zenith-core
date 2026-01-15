@@ -59,6 +59,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@zenithbuild/router": "latest",
     "@types/acorn": "^6.0.4",
     "@types/marked": "^6.0.0",
     "@types/parse5": "^7.0.0",
