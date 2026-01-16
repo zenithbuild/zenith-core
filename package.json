@@ -1,6 +1,6 @@
 {
   "name": "@zenithbuild/core",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Core library for the Zenith framework",
   "license": "MIT",
   "type": "module",
