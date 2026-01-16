@@ -640,7 +640,16 @@ export function generateBundleJS(): string {
   function defineSchema(name, schema) { schemaRegistry.set(name, schema); }
 
   function zenCollection(collectionName) {
-    const data = (global.__ZENITH_CONTENT__ && global.__ZENITH_CONTENT__[collectionName]) || [];
+    // Access plugin data from the neutral envelope
+    // Content plugin stores all items under 'content' namespace
+    const pluginData = global.__ZENITH_PLUGIN_DATA__ || {};
+    const contentItems = pluginData.content || [];
+    
+    // Filter by collection name (plugin owns data structure, runtime just filters)
+    const data = Array.isArray(contentItems)
+      ? contentItems.filter(item => item && item.collection === collectionName)
+      : [];
+    
     return new ZenCollection(data);
   }
 

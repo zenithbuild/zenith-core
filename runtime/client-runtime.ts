@@ -486,6 +486,25 @@ export function cleanup(container?: Element | Document): void {
 }
 
 // ============================================
+// Plugin Runtime Data Access
+// ============================================
+
+/**
+ * Access plugin data from the neutral envelope
+ * 
+ * Plugins use this to retrieve their data at runtime.
+ * The CLI injected this data via window.__ZENITH_PLUGIN_DATA__
+ * 
+ * @param namespace - Plugin namespace (e.g., 'content', 'router')
+ * @returns The plugin's data, or undefined if not present
+ */
+export function getPluginRuntimeData(namespace: string): unknown {
+    if (typeof window === 'undefined') return undefined;
+    const envelope = (window as any).__ZENITH_PLUGIN_DATA__;
+    return envelope?.[namespace];
+}
+
+// ============================================
 // Browser Globals Setup
 // ============================================
 
@@ -506,7 +525,8 @@ export function setupGlobals(): void {
         onMount: zenOnMount,
         onUnmount: zenOnUnmount,
         triggerMount,
-        triggerUnmount
+        triggerUnmount,
+        getPluginData: getPluginRuntimeData  // Access plugin data from envelope
     };
 
     // Expression registry

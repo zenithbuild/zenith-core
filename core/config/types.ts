@@ -2,71 +2,101 @@
  * Zenith Config Types
  * 
  * Configuration interfaces for zenith.config.ts
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * HOOK OWNERSHIP RULE (CANONICAL)
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Core may ONLY define types that are universally valid in all Zenith applications.
+ * Plugin-specific types MUST be owned by their respective plugins.
+ * 
+ * ✅ ALLOWED in Core:
+ *    - ZenithConfig, ZenithPlugin, PluginContext (generic plugin infrastructure)
+ *    - Universal lifecycle hooks (onMount, onUnmount)
+ *    - Reactivity primitives (signal, effect, etc.)
+ * 
+ * ❌ PROHIBITED in Core:
+ *    - Content plugin types (ContentItem, ContentSourceConfig, etc.)
+ *    - Router plugin types (RouteState, NavigationGuard, etc.)
+ *    - Documentation plugin types
+ *    - Any type that exists only because a plugin exists
+ * 
+ * If removing a plugin would make a type meaningless, that type belongs to the plugin.
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 
+import type { CLIBridgeAPI } from '../plugins/bridge';
+
 // ============================================
-// Content Plugin Types
+// Core Plugin Types (Generic Infrastructure)
 // ============================================
 
 /**
- * Configuration for a content source
+ * Generic data record for plugin data exchange
+ * Plugins define their own specific types internally
  */
-export interface ContentSourceConfig {
-    /** Root directory relative to project root (e.g., "../zenith-docs" or "content") */
-    root: string;
-    /** Folders to include from the root (e.g., ["documentation"]). Defaults to all. */
-    include?: string[];
-    /** Folders to exclude from the root (e.g., ["changelog"]) */
-    exclude?: string[];
-}
-
-/**
- * Options for the content plugin
- */
-export interface ContentPluginOptions {
-    /** Named content sources mapped to their configuration */
-    sources?: Record<string, ContentSourceConfig>;
-    /** Legacy: Single content directory (deprecated, use sources instead) */
-    contentDir?: string;
-}
-
-// ============================================
-// Core Plugin Types
-// ============================================
+export type PluginData = Record<string, unknown[]>;
 
 /**
  * Context passed to plugins during setup
+ * 
+ * This is intentionally generic - plugins define their own data shapes.
+ * Core provides the stage, plugins bring the actors.
  */
 export interface PluginContext {
     /** Absolute path to project root */
     projectRoot: string;
-    /** Set content data for the runtime */
-    setContentData: (data: Record<string, ContentItem[]>) => void;
+
+    /** 
+     * Set plugin data for the runtime
+     * 
+     * Generic setter - plugins define their own data structures.
+     * The runtime stores this data and makes it available to components.
+     * 
+     * @example
+     * // Content plugin uses it for content items
+     * ctx.setPluginData('content', contentItems);
+     * 
+     * // Analytics plugin uses it for tracking config
+     * ctx.setPluginData('analytics', analyticsConfig);
+     */
+    setPluginData: (namespace: string, data: unknown[]) => void;
+
     /** Additional options passed from config */
     options?: Record<string, unknown>;
 }
 
 /**
- * A content item loaded from a source
- */
-export interface ContentItem {
-    id?: string | number;
-    slug?: string | null;
-    collection?: string | null;
-    content?: string | null;
-    [key: string]: unknown;
-}
-
-/**
  * A Zenith plugin definition
+ * 
+ * Plugins are self-contained, removable extensions.
+ * Core must build and run identically with or without any plugin installed.
  */
 export interface ZenithPlugin {
     /** Unique plugin name */
     name: string;
+
     /** Setup function called during initialization */
     setup: (ctx: PluginContext) => void | Promise<void>;
+
     /** Plugin-specific configuration (preserved for reference) */
     config?: unknown;
+
+    /**
+     * Optional CLI registration
+     * 
+     * Plugin receives the CLI bridge API to register namespaced hooks.
+     * CLI lifecycle hooks: 'cli:*' (owned by CLI)
+     * Plugin hooks: '<namespace>:*' (owned by plugin)
+     * 
+     * @example
+     * registerCLI(api) {
+     *   api.on('cli:runtime:collect', (ctx) => {
+     *     return { namespace: 'myPlugin', payload: ctx.getPluginData('myPlugin') }
+     *   })
+     * }
+     */
+    registerCLI?: (api: CLIBridgeAPI) => void;
 }
 
 // ============================================

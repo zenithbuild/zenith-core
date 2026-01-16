@@ -119,7 +119,10 @@ ${indent}}\n`
       const conditionId = `cond_${varCounter.count++}`
 
       let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
-      code += `${indent}const ${conditionId}_result = (function() { with (state) { return ${condNode.condition}; } })();\n`
+      // Evaluate condition with state context using new Function (sloppy mode allows 'with')
+      const escapedCondition = condNode.condition.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      code += `${indent}const ${conditionId}_evalFn = new Function('state', 'with (state) { return (' + '${escapedCondition}' + '); }');\n`
+      code += `${indent}const ${conditionId}_result = (function() { try { return ${conditionId}_evalFn(state); } catch(e) { return false; } })();\n`
 
       // Generate consequent branch
       code += `${indent}if (${conditionId}_result) {\n`
@@ -149,7 +152,10 @@ ${indent}}\n`
       const conditionId = `opt_${varCounter.count++}`
 
       let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
-      code += `${indent}const ${conditionId}_result = (function() { with (state) { return ${optNode.condition}; } })();\n`
+      // Evaluate condition with state context using new Function (sloppy mode allows 'with')
+      const escapedCondition = optNode.condition.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      code += `${indent}const ${conditionId}_evalFn = new Function('state', 'with (state) { return (' + '${escapedCondition}' + '); }');\n`
+      code += `${indent}const ${conditionId}_result = (function() { try { return ${conditionId}_evalFn(state); } catch(e) { return false; } })();\n`
       code += `${indent}if (${conditionId}_result) {\n`
 
       for (const child of optNode.fragment) {
@@ -171,7 +177,10 @@ ${indent}}\n`
       const loopId = `loop_${varCounter.count++}`
 
       let code = `${indent}const ${containerVar} = document.createDocumentFragment();\n`
-      code += `${indent}const ${loopId}_items = (function() { with (state) { return ${loopNode.source}; } })() || [];\n`
+      // Evaluate loop source with state context using new Function (sloppy mode allows 'with')
+      const escapedSource = loopNode.source.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      code += `${indent}const ${loopId}_evalFn = new Function('state', 'with (state) { return (' + '${escapedSource}' + '); }');\n`
+      code += `${indent}const ${loopId}_items = (function() { try { return ${loopId}_evalFn(state); } catch(e) { return []; } })() || [];\n`
 
       // Loop parameters
       const itemVar = loopNode.itemVar

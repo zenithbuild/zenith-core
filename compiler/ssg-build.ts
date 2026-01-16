@@ -11,6 +11,18 @@
  * Hydrated pages reference the shared bundle.js and their page-specific JS.
  */
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * CLI HARDENING: BLIND ORCHESTRATOR PATTERN
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * This build system uses the plugin bridge pattern:
+ * - Plugins are initialized unconditionally
+ * - Data is collected via 'cli:runtime:collect' hook
+ * - CLI never inspects or branches on plugin data
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
 import fs from "fs"
 import path from "path"
 import { compileZenSource } from "./index"
@@ -19,8 +31,16 @@ import { processLayout } from "./transform/layoutProcessor"
 import { discoverPages, generateRouteDefinition } from "@zenithbuild/router/manifest"
 import { analyzePageSource, getAnalysisSummary, getBuildOutputType, type PageAnalysis } from "./build-analyzer"
 import { generateBundleJS } from "../runtime/bundle-generator"
-import { loadContent } from "../cli/utils/content"
 import { compileCss, resolveGlobalsCss } from "./css"
+import { loadZenithConfig } from "../core/config/loader"
+import { PluginRegistry, createPluginContext, getPluginDataByNamespace } from "../core/plugins/registry"
+import {
+    createBridgeAPI,
+    collectHookReturns,
+    buildRuntimeEnvelope,
+    clearHooks,
+    type HookContext
+} from "../core/plugins/bridge"
 
 // ============================================
 // Types
@@ -131,8 +151,10 @@ async function compilePage(
  * Generate the final HTML for a page
  * Static pages: no JS references
  * Hydrated pages: bundle.js + page-specific JS
+ * 
+ * Uses the neutral __ZENITH_PLUGIN_DATA__ envelope - CLI never inspects contents.
  */
-function generatePageHTML(page: CompiledPage, globalStyles: string, contentData: any): string {
+function generatePageHTML(page: CompiledPage, globalStyles: string, pluginEnvelope: Record<string, unknown>): string {
     const { html, styles, analysis, routePath, pageScript } = page
 
     // Combine styles
@@ -142,8 +164,10 @@ function generatePageHTML(page: CompiledPage, globalStyles: string, contentData:
     // Build script tags only if needed
     let scriptTags = ''
     if (analysis.needsHydration) {
+        // Escape </script> sequences in JSON to prevent breaking the script tag
+        const envelopeJson = JSON.stringify(pluginEnvelope).replace(/<\//g, '<\\/')
         scriptTags = `
-  <script>window.__ZENITH_CONTENT__ = ${JSON.stringify(contentData)};</script>
+  <script>window.__ZENITH_PLUGIN_DATA__ = ${envelopeJson};</script>
   <script src="/assets/bundle.js"></script>`
 
         if (pageScript) {
@@ -238,15 +262,55 @@ ${page.pageScript}
 
 /**
  * Build all pages using SSG approach
+ * 
+ * Follows the blind orchestrator pattern:
+ * - Plugins are initialized unconditionally
+ * - Data is collected via hooks
+ * - CLI never inspects plugin data
  */
 export async function buildSSG(options: SSGBuildOptions): Promise<void> {
     const { pagesDir, outDir, baseDir = path.dirname(pagesDir) } = options
-    const contentDir = path.join(baseDir, 'content')
-    const contentData = loadContent(contentDir)
 
     console.log('🔨 Zenith SSG Build')
     console.log(`   Pages: ${pagesDir}`)
     console.log(`   Output: ${outDir}`)
+    console.log('')
+
+    // ============================================
+    // Plugin Initialization (Unconditional)
+    // ============================================
+    // Load config and initialize all plugins without checking which ones exist.
+    const config = await loadZenithConfig(baseDir)
+    const registry = new PluginRegistry()
+    const bridgeAPI = createBridgeAPI()
+
+    // Clear any previously registered hooks
+    clearHooks()
+
+    // Register ALL plugins unconditionally
+    for (const plugin of config.plugins || []) {
+        console.log(`   Plugin: ${plugin.name}`)
+        registry.register(plugin)
+
+        // Let plugin register its CLI hooks
+        if (plugin.registerCLI) {
+            plugin.registerCLI(bridgeAPI)
+        }
+    }
+
+    // Initialize all plugins
+    await registry.initAll(createPluginContext(baseDir))
+
+    // Create hook context - CLI provides this but NEVER uses getPluginData itself
+    const hookCtx: HookContext = {
+        projectRoot: baseDir,
+        getPluginData: getPluginDataByNamespace
+    }
+
+    // Collect runtime payloads from ALL plugins
+    const payloads = await collectHookReturns('cli:runtime:collect', hookCtx)
+    const pluginEnvelope = buildRuntimeEnvelope(payloads)
+
     console.log('')
 
     // Clean and create output directory
@@ -326,7 +390,7 @@ export async function buildSSG(options: SSGBuildOptions): Promise<void> {
         fs.mkdirSync(pageOutDir, { recursive: true })
 
         // Generate and write HTML
-        const html = generatePageHTML(page, globalStyles, contentData)
+        const html = generatePageHTML(page, globalStyles, pluginEnvelope)
         fs.writeFileSync(path.join(pageOutDir, 'index.html'), html)
 
         // Write page-specific JS if needed
@@ -357,7 +421,7 @@ export async function buildSSG(options: SSGBuildOptions): Promise<void> {
         if (fs.existsSync(custom404Path)) {
             try {
                 const compiled = await compilePage(custom404Path, pagesDir, baseDir)
-                const html = generatePageHTML(compiled, globalStyles, contentData)
+                const html = generatePageHTML(compiled, globalStyles, pluginEnvelope)
                 fs.writeFileSync(path.join(outDir, '404.html'), html)
                 console.log('📦 Generated 404.html (custom)')
                 has404 = true

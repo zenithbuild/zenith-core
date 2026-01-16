@@ -115,6 +115,9 @@ function generateRuntimeBundle(parts: {
   // Extract function declarations from script code to register on window
   const functionRegistrations = extractFunctionRegistrations(parts.scriptCode)
 
+  // Extract const/let declarations from script code to register on window
+  const variableRegistrations = extractVariableRegistrations(parts.scriptCode)
+
   // Generate npm imports header (hoisted, deduplicated, deterministic)
   const npmImportsHeader = parts.npmImports.length > 0
     ? `// NPM Imports (hoisted from component scripts)\n${emitImports(parts.npmImports)}\n\n`
@@ -138,6 +141,8 @@ ${parts.stylesCode}` : ''}
 ${parts.scriptCode ? parts.scriptCode : ''}
 
 ${functionRegistrations}
+
+${variableRegistrations}
 
 ${parts.stateInitCode ? `// State initialization
 ${parts.stateInitCode}` : ''}
@@ -258,6 +263,37 @@ function extractFunctionRegistrations(scriptCode: string): string {
   ).join('\n')
 
   return `// Register functions on window for event handlers\n${registrations}`
+}
+
+/**
+ * Extract const/let declarations and generate window registration code
+ * This allows expressions evaluated via new Function() to access script-level variables
+ */
+function extractVariableRegistrations(scriptCode: string): string {
+  if (!scriptCode) return ''
+
+  // Match const/let declarations: const name = ... or let name = ...
+  // Also match destructured: const { a, b } = ... but we only care about simple assignments
+  const varPattern = /(?:const|let)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/g
+  const varNames: string[] = []
+  let match
+
+  while ((match = varPattern.exec(scriptCode)) !== null) {
+    if (match[1]) {
+      varNames.push(match[1])
+    }
+  }
+
+  if (varNames.length === 0) {
+    return ''
+  }
+
+  // Generate window registration for each variable
+  const registrations = varNames.map(name =>
+    `  if (typeof ${name} !== 'undefined') window.${name} = ${name};`
+  ).join('\n')
+
+  return `// Register script variables on window for expression access\n${registrations}`
 }
 
 /**

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json.schemastore.org/eslintrc",
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint"],
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/zenith-plugins/**"],
+            "message": "CLI/Core must not import from plugin packages. Plugins register hooks via bridge API."
+          },
+          {
+            "group": ["@zenithbuild/content", "@zenithbuild/content/**"],
+            "message": "CLI/Core must not import content plugin. Content owns its own data."
+          },
+          {
+            "group": ["@zenithbuild/analytics", "@zenithbuild/analytics/**"],
+            "message": "CLI/Core must not import analytics plugin."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["cli/**/*.ts"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "CallExpression[callee.property.name='has'][arguments.0.value=/^zenith-/]",
+            "message": "CLI must not check for specific plugins by name. Use unconditional hook dispatch instead."
+          },
+          {
+            "selector": "TSAsExpression[typeAnnotation.typeName.name=/Content|ContentItem|ContentSource|Route|RouteState|Analytics/]",
+            "message": "CLI must not cast to plugin-specific types. All plugin data is opaque (unknown)."
+          },
+          {
+            "selector": "Identifier[name=/^getContentData$|^getRouteData$|^getAnalyticsData$/]",
+            "message": "CLI must not define plugin-specific helper functions. Use getPluginData(namespace) for opaque access."
+          },
+          {
+            "selector": "MemberExpression[object.name='window'][property.name='__ZENITH_CONTENT__']",
+            "message": "Use window.__ZENITH_PLUGIN_DATA__ instead. CLI injects a neutral envelope, not plugin-specific globals."
+          },
+          {
+            "selector": "Literal[value='zenith-content']",
+            "message": "CLI should not hardcode plugin names. Use unconditional hook dispatch."
+          },
+          {
+            "selector": "Literal[value='zenith-router']",
+            "message": "CLI should not hardcode plugin names. Use unconditional hook dispatch."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["../cli/**", "**/cli/**"],
+                "message": "Core must not import from CLI. CLI is a consumer of core, not the other way around."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

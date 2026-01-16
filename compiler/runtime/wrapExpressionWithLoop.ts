@@ -66,18 +66,32 @@ export function wrapExpressionWithLoopContext(
   // or recognized as an existing h() call.
   const transformedCode = transformExpressionJSX(code)
 
+  // Properly escape the transformed code for use inside a string
+  const escapedTransformedCode = transformedCode
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+
   return `
   // Expression with loop context: ${escapedCode}
   // Loop variables: ${loopContext.variables.join(', ')}
-  const ${id} = (${argsStr}) => {
-    try {
-      ${contextObject}
-      with (__ctx) {
-        return ${transformedCode};
+  const ${id} = (function() {
+    // Create the evaluator function once (with 'with' support in sloppy mode)
+    var evalFn = new Function('__ctx',
+      'with (__ctx) { return (' + '${escapedTransformedCode}' + '); }'
+    );
+    
+    return function(${argsStr}) {
+      try {
+        // Merge window globals with context (for script-level variables)
+        var __baseCtx = Object.assign({}, window);
+        ${contextObject.replace('const __ctx', 'var __ctx').replace('= Object.assign({},', '= Object.assign(__baseCtx,')}
+        return evalFn(__ctx);
+      } catch (e) {
+        console.warn('[Zenith] Expression evaluation error for "${escapedCode}":', e);
+        return undefined;
       }
-    } catch (e) {
-      console.warn('[Zenith] Expression evaluation error for "${escapedCode}":', e);
-      return undefined;
-    }
-  };`
+    };
+  })();`
 }

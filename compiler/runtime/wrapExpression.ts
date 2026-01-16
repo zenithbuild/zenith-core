@@ -44,22 +44,41 @@ export function wrapExpression(
   const commentCode = code.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').substring(0, 100)
   const jsonEscapedCode = JSON.stringify(code)
 
+  // Properly escape the transformed code for use inside a string
+  const escapedTransformedCode = transformedCode
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+
+  // Note: We cannot use `with (state)` in ES modules (strict mode)
+  // Instead, we use new Function() which runs in non-strict sloppy mode by default
+  // and allows 'with' statements. This is a workaround for strict mode limitations.
   return `
   // Expression: ${commentCode}${code.length > 100 ? '...' : ''}
-  const ${id} = (state) => {
-    try {
-      // Expose zenith helpers for JSX and content
-      const __zenith = window.__zenith || {};
-      const zenCollection = __zenith.zenCollection || ((name) => ({ get: () => [] }));
-      
-      with (state) {
-        return ${transformedCode};
+  const ${id} = (function() {
+    // Create the evaluator function once (with 'with' support in sloppy mode)
+    var evalFn = new Function('__ctx',
+      'with (__ctx) { return (' + '${escapedTransformedCode}' + '); }'
+    );
+    
+    return function(state) {
+      try {
+        var __zenith = window.__zenith || {};
+        var zenCollection = __zenith.zenCollection || function(name) { return { get: function() { return []; } }; };
+        var createZenOrder = __zenith.createZenOrder || function(sections) { return { sections: [], getSectionBySlug: function() { return null; }, getDocBySlug: function() { return null; } }; };
+        
+        // Merge window globals (script variables) with state
+        // State takes precedence over window globals
+        var __ctx = Object.assign({}, window, { zenCollection: zenCollection, createZenOrder: createZenOrder }, state || {});
+        
+        return evalFn(__ctx);
+      } catch (e) {
+        console.warn('[Zenith] Expression evaluation error:', ${jsonEscapedCode}, e);
+        return undefined;
       }
-    } catch (e) {
-      console.warn('[Zenith] Expression evaluation error:', ${jsonEscapedCode}, e);
-      return undefined;
-    }
-  };`
+    };
+  })();`
 }
 
 /**

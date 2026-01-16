@@ -1,3 +1,23 @@
+/**
+ * @zenith/cli - Dev Command
+ * 
+ * Development server with HMR support.
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * CLI HARDENING: BLIND ORCHESTRATOR PATTERN
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * This file follows the CLI Hardening Plan:
+ * - NO plugin-specific branching (no `if (hasContentPlugin)`)
+ * - NO semantic helpers (no `getContentData()`)
+ * - NO plugin type imports or casts
+ * - ONLY opaque data forwarding via hooks
+ * 
+ * The CLI dispatches lifecycle hooks and collects payloads.
+ * It never understands what the data means.
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
 import path from 'path'
 import fs from 'fs'
 import { serve, type ServerWebSocket } from 'bun'
@@ -7,13 +27,19 @@ import * as brand from '../utils/branding'
 import { compileZenSource } from '../../compiler/index'
 import { discoverLayouts } from '../../compiler/discovery/layouts'
 import { processLayout } from '../../compiler/transform/layoutProcessor'
-import { generateRouteDefinition } from '../../router/manifest'
+import { generateRouteDefinition } from '@zenithbuild/router'
 import { generateBundleJS } from '../../runtime/bundle-generator'
-import { loadContent } from '../utils/content'
 import { loadZenithConfig } from '../../core/config/loader'
-import { PluginRegistry, createPluginContext } from '../../core/plugins/registry'
-import type { ContentItem } from '../../core/config/types'
+import { PluginRegistry, createPluginContext, getPluginDataByNamespace } from '../../core/plugins/registry'
 import { compileCssAsync, resolveGlobalsCss } from '../../compiler/css'
+import {
+    createBridgeAPI,
+    runPluginHooks,
+    collectHookReturns,
+    buildRuntimeEnvelope,
+    clearHooks,
+    type HookContext
+} from '../../core/plugins/bridge'
 
 export interface DevOptions {
     port?: number
@@ -83,39 +109,48 @@ export async function dev(options: DevOptions = {}): Promise<void> {
     const port = options.port || parseInt(process.env.PORT || '3000', 10)
     const pagesDir = project.pagesDir
     const rootDir = project.root
-    const contentDir = path.join(rootDir, 'content')
 
     // Load zenith.config.ts if present
     const config = await loadZenithConfig(rootDir)
     const registry = new PluginRegistry()
+    const bridgeAPI = createBridgeAPI()
+
+    // Clear any previously registered hooks (important for restarts)
+    clearHooks()
 
     console.log('[Zenith] Config plugins:', config.plugins?.length ?? 0)
 
-    // Register plugins from config
+    // ============================================
+    // Plugin Registration (Unconditional)
+    // ============================================
+    // CLI registers ALL plugins without checking which ones exist.
+    // Each plugin decides what hooks to register.
     for (const plugin of config.plugins || []) {
         console.log('[Zenith] Registering plugin:', plugin.name)
         registry.register(plugin)
+
+        // Let plugin register its CLI hooks (if it wants to)
+        // CLI does NOT check what the plugin is - it just offers the API
+        if (plugin.registerCLI) {
+            plugin.registerCLI(bridgeAPI)
+        }
     }
 
-    // Initialize content data
-    let contentData: Record<string, ContentItem[]> = {}
+    // ============================================
+    // Plugin Initialization (Unconditional)
+    // ============================================
+    // Initialize ALL plugins unconditionally.
+    // If no plugins, this is a no-op. CLI doesn't branch on plugin presence.
+    await registry.initAll(createPluginContext(rootDir))
 
-    // Initialize plugins with context
-    const hasContentPlugin = registry.has('zenith-content')
-    console.log('[Zenith] Has zenith-content plugin:', hasContentPlugin)
-
-    if (hasContentPlugin) {
-        await registry.initAll(createPluginContext(rootDir, (data) => {
-            console.log('[Zenith] Content plugin set data, collections:', Object.keys(data))
-            contentData = data
-        }))
-    } else {
-        // Fallback to legacy content loading if no content plugin configured
-        console.log('[Zenith] Using legacy content loading from:', contentDir)
-        contentData = loadContent(contentDir)
+    // Create hook context - CLI provides this but NEVER uses getPluginData itself
+    const hookCtx: HookContext = {
+        projectRoot: rootDir,
+        getPluginData: getPluginDataByNamespace
     }
 
-    console.log('[Zenith] Content collections loaded:', Object.keys(contentData))
+    // Dispatch lifecycle hook - plugins decide if they care
+    await runPluginHooks('cli:dev:start', hookCtx)
 
     // ============================================
     // CSS Compilation (Compiler-Owned)
@@ -189,9 +224,49 @@ export async function dev(options: DevOptions = {}): Promise<void> {
         }
     }
 
-    // Set up file watching for HMR
+    /**
+     * Generate dev HTML with plugin data envelope
+     * 
+     * CLI collects payloads from plugins via 'cli:runtime:collect' hook.
+     * It serializes blindly - never inspecting what's inside.
+     */
+    async function generateDevHTML(page: CompiledPage): Promise<string> {
+        // Collect runtime payloads from ALL plugins
+        // CLI doesn't know which plugins will respond - it just collects
+        const payloads = await collectHookReturns('cli:runtime:collect', hookCtx)
+
+        // Build envelope - CLI doesn't know what's inside
+        const envelope = buildRuntimeEnvelope(payloads)
+
+        // Escape </script> sequences in JSON to prevent breaking the script tag
+        const envelopeJson = JSON.stringify(envelope).replace(/<\//g, '<\\/')
+
+        // Single neutral injection point - NOT plugin-specific
+        const runtimeTag = `<script src="/runtime.js"></script>`
+        const pluginDataTag = `<script>window.__ZENITH_PLUGIN_DATA__ = ${envelopeJson};</script>`
+        const scriptTag = `<script type="module">\n${page.script}\n</script>`
+        const allScripts = `${runtimeTag}\n${pluginDataTag}\n${scriptTag}`
+
+        return page.html.includes('</body>')
+            ? page.html.replace('</body>', `${allScripts}\n</body>`)
+            : `${page.html}\n${allScripts}`
+    }
+
+    // ============================================
+    // File Watcher (Plugin-Agnostic)
+    // ============================================
+    // CLI watches files but delegates decisions to plugins via hooks.
+    // No branching on file types that are "content" vs "not content".
     const watcher = fs.watch(path.join(pagesDir, '..'), { recursive: true }, async (event, filename) => {
         if (!filename) return
+
+        // Dispatch file change hook to ALL plugins
+        // Each plugin decides if it cares about this file
+        await runPluginHooks('cli:dev:file-change', {
+            ...hookCtx,
+            filename,
+            event
+        })
 
         if (filename.endsWith('.zen')) {
             logger.hmr('Page', filename)
@@ -223,16 +298,13 @@ export async function dev(options: DevOptions = {}): Promise<void> {
             for (const client of clients) {
                 client.send(JSON.stringify({ type: 'style-update', url: '/assets/styles.css' }))
             }
-        } else if (filename.startsWith('content') || filename.includes('zenith-docs')) {
-            logger.hmr('Content', filename)
-            // Reinitialize content plugin to reload data
-            if (registry.has('zenith-content')) {
-                registry.initAll(createPluginContext(rootDir, (data) => {
-                    contentData = data
-                }))
-            } else {
-                contentData = loadContent(contentDir)
-            }
+        } else {
+            // For all other file changes, re-initialize plugins unconditionally
+            // Plugins decide internally whether they need to reload data
+            // CLI does NOT branch on "is this a content file"
+            await registry.initAll(createPluginContext(rootDir))
+
+            // Broadcast reload for any non-code file changes
             for (const client of clients) {
                 client.send(JSON.stringify({ type: 'reload' }))
             }
@@ -305,7 +377,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 
                 if (cached) {
                     const renderStart = performance.now()
-                    const html = generateDevHTML(cached, contentData)
+                    const html = await generateDevHTML(cached)
                     const renderEnd = performance.now()
 
                     const totalTime = Math.round(performance.now() - startTime)
@@ -372,17 +444,4 @@ function findPageForRoute(route: string, pagesDir: string): string | null {
     if (fs.existsSync(rootCatchAll)) return rootCatchAll
 
     return null
-}
-
-function generateDevHTML(page: CompiledPage, contentData: any = {}): string {
-    const runtimeTag = `<script src="/runtime.js"></script>`
-    // Escape </script> sequences in JSON content to prevent breaking the script tag
-    const contentJson = JSON.stringify(contentData).replace(/<\//g, '<\\/')
-    const contentTag = `<script>window.__ZENITH_CONTENT__ = ${contentJson};</script>`
-    // Use type="module" to support ES6 imports from npm packages
-    const scriptTag = `<script type="module">\n${page.script}\n</script>`
-    const allScripts = `${runtimeTag}\n${contentTag}\n${scriptTag}`
-    return page.html.includes('</body>')
-        ? page.html.replace('</body>', `${allScripts}\n</body>`)
-        : `${page.html}\n${allScripts}`
 }
