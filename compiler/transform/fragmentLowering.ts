@@ -56,11 +56,22 @@ function lowerNode(
         case 'expression':
             return lowerExpressionNode(node, filePath, expressions)
 
-        case 'element':
+        case 'element': {
+            // Check if this is a <for> element directive
+            if (node.tag === 'for') {
+                return lowerForElement(node, filePath, expressions)
+            }
+            
+            // Check if this is an <html-content> element directive
+            if (node.tag === 'html-content') {
+                return lowerHtmlContentElement(node, filePath, expressions)
+            }
+            
             return {
                 ...node,
                 children: lowerFragments(node.children, filePath, expressions)
             }
+        }
 
         case 'component':
             return {
@@ -274,6 +285,147 @@ function lowerInlineFragment(
     // which converts JSX to __zenith.h() calls
     // In a future iteration, we could parse them to static nodes here
     return node
+}
+
+/**
+ * Lower <for> element directive to LoopFragmentNode
+ * 
+ * Syntax: <for each="item" in="items">...body...</for>
+ * Or:     <for each="item, index" in="items">...body...</for>
+ * 
+ * This is compile-time sugar for {items.map(item => ...)}
+ */
+function lowerForElement(
+    node: import('../ir/types').ElementNode,
+    filePath: string,
+    expressions: ExpressionIR[]
+): LoopFragmentNode {
+    // Extract 'each' and 'in' attributes
+    const eachAttr = node.attributes.find(a => a.name === 'each')
+    const inAttr = node.attributes.find(a => a.name === 'in')
+    
+    if (!eachAttr || typeof eachAttr.value !== 'string') {
+        throw new InvariantError(
+            'ZEN001',
+            `<for> element requires an 'each' attribute specifying the item variable`,
+            'Usage: <for each="item" in="items">...body...</for>',
+            filePath,
+            node.location.line,
+            node.location.column
+        )
+    }
+    
+    if (!inAttr || typeof inAttr.value !== 'string') {
+        throw new InvariantError(
+            'ZEN001',
+            `<for> element requires an 'in' attribute specifying the source array`,
+            'Usage: <for each="item" in="items">...body...</for>',
+            filePath,
+            node.location.line,
+            node.location.column
+        )
+    }
+    
+    // Parse item variable (may include index: "item, index" or "item, i")
+    const eachValue = eachAttr.value.trim()
+    let itemVar: string
+    let indexVar: string | undefined
+    
+    if (eachValue.includes(',')) {
+        const parts = eachValue.split(',').map(p => p.trim())
+        itemVar = parts[0]!
+        indexVar = parts[1]
+    } else {
+        itemVar = eachValue
+    }
+    
+    const source = inAttr.value.trim()
+    
+    // Create loop context for the body
+    const loopVariables = [itemVar]
+    if (indexVar) {
+        loopVariables.push(indexVar)
+    }
+    
+    const bodyLoopContext: LoopContext = {
+        variables: node.loopContext
+            ? [...node.loopContext.variables, ...loopVariables]
+            : loopVariables,
+        mapSource: source
+    }
+    
+    // Lower children with loop context
+    const body = node.children.map(child => {
+        // Recursively lower children
+        const lowered = lowerNode(child, filePath, expressions)
+        // Attach loop context to children that need it
+        if ('loopContext' in lowered) {
+            return { ...lowered, loopContext: bodyLoopContext }
+        }
+        return lowered
+    })
+    
+    return {
+        type: 'loop-fragment',
+        source,
+        itemVar,
+        indexVar,
+        body,
+        location: node.location,
+        loopContext: bodyLoopContext
+    }
+}
+
+/**
+ * Lower <html-content> element directive
+ * 
+ * Syntax: <html-content content="expr" />
+ * 
+ * This renders the expression value as raw HTML (innerHTML).
+ * Use with caution - only for trusted content like icons defined in code.
+ */
+function lowerHtmlContentElement(
+    node: import('../ir/types').ElementNode,
+    filePath: string,
+    expressions: ExpressionIR[]
+): TemplateNode {
+    // Extract 'content' attribute
+    const contentAttr = node.attributes.find(a => a.name === 'content')
+    
+    if (!contentAttr || typeof contentAttr.value !== 'string') {
+        throw new InvariantError(
+            'ZEN001',
+            `<html-content> element requires a 'content' attribute specifying the expression`,
+            'Usage: <html-content content="item.html" />',
+            filePath,
+            node.location.line,
+            node.location.column
+        )
+    }
+    
+    const exprCode = contentAttr.value.trim()
+    
+    // Generate expression ID and register the expression
+    const exprId = `expr_${expressions.length}`
+    const exprIR: ExpressionIR = {
+        id: exprId,
+        code: exprCode,
+        location: node.location
+    }
+    expressions.push(exprIR)
+    
+    // Create a span element with data-zen-html attribute for raw HTML binding
+    return {
+        type: 'element',
+        tag: 'span',
+        attributes: [
+            { name: 'data-zen-html', value: exprIR, location: node.location, loopContext: node.loopContext },
+            { name: 'style', value: 'display: contents;', location: node.location }
+        ],
+        children: [],
+        location: node.location,
+        loopContext: node.loopContext
+    }
 }
 
 /**

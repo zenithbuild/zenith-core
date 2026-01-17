@@ -5,19 +5,19 @@
  * Uses compound component pattern for named slots (Card.Header, Card.Footer).
  */
 
-import type { TemplateNode, ComponentNode, ElementNode, ZenIR, LoopContext, ComponentScriptIR } from '../ir/types'
+import type { TemplateNode, ComponentNode, ElementNode, ZenIR, LoopContext, ComponentScriptIR, ExpressionIR } from '../ir/types'
 import type { ComponentMetadata } from '../discovery/componentDiscovery'
 import { extractSlotsFromChildren, resolveSlots } from './slotResolver'
 import { throwOrphanCompoundError, throwUnresolvedComponentError } from '../validate/invariants'
 
-// Track which components have been used (for style and script collection)
+// Track which components have been used (for style, script, and expression collection)
 const usedComponents = new Set<string>()
 
 /**
  * Resolve all component nodes in a template IR
  * 
  * Recursively replaces ComponentNode instances with their resolved templates
- * Also collects styles AND scripts from used components and adds them to the IR
+ * Also collects styles, scripts, AND expressions from used components and adds them to the IR
  */
 export function resolveComponentsInIR(
     ir: ZenIR,
@@ -46,11 +46,21 @@ export function resolveComponentsInIR(
             scriptAttributes: meta.scriptAttributes || {}
         }))
 
+    // Collect expressions from all used components (critical for rendering)
+    // Component templates may contain expression nodes that reference expression IDs
+    // These IDs must be present in the IR's expressions array for transformation to work
+    const componentExpressions: ExpressionIR[] = Array.from(usedComponents)
+        .map(name => components.get(name))
+        .filter((meta): meta is ComponentMetadata => meta !== undefined && meta.expressions?.length > 0)
+        .flatMap(meta => meta.expressions)
+
     return {
         ...ir,
         template: {
             ...ir.template,
-            nodes: resolvedNodes
+            nodes: resolvedNodes,
+            // Merge component expressions with existing page expressions
+            expressions: [...ir.template.expressions, ...componentExpressions]
         },
         // Merge component styles with existing page styles
         styles: [...ir.styles, ...componentStyles],
@@ -105,6 +115,34 @@ function resolveComponentNode(
         return {
             ...node,
             children: resolvedChildren
+        }
+    }
+
+    // Handle loop-fragment nodes - recursively resolve body
+    if (node.type === 'loop-fragment') {
+        const loopNode = node as import('../ir/types').LoopFragmentNode
+        return {
+            ...loopNode,
+            body: resolveComponentsInNodes(loopNode.body, components, depth + 1)
+        }
+    }
+
+    // Handle conditional-fragment nodes - recursively resolve both branches
+    if (node.type === 'conditional-fragment') {
+        const condNode = node as import('../ir/types').ConditionalFragmentNode
+        return {
+            ...condNode,
+            consequent: resolveComponentsInNodes(condNode.consequent, components, depth + 1),
+            alternate: resolveComponentsInNodes(condNode.alternate, components, depth + 1)
+        }
+    }
+
+    // Handle optional-fragment nodes - recursively resolve fragment
+    if (node.type === 'optional-fragment') {
+        const optNode = node as import('../ir/types').OptionalFragmentNode
+        return {
+            ...optNode,
+            fragment: resolveComponentsInNodes(optNode.fragment, components, depth + 1)
         }
     }
 

@@ -7,6 +7,11 @@
 import type { Binding } from '../output/types'
 
 /**
+ * Valid binding types
+ */
+const VALID_BINDING_TYPES = new Set(['text', 'attribute', 'loop', 'conditional', 'optional'])
+
+/**
  * Validate bindings structure
  */
 export function validateBindings(bindings: Binding[]): void {
@@ -15,19 +20,35 @@ export function validateBindings(bindings: Binding[]): void {
       throw new Error(`Invalid binding: ${JSON.stringify(binding)}`)
     }
     
-    if (binding.type !== 'text' && binding.type !== 'attribute') {
+    if (!VALID_BINDING_TYPES.has(binding.type)) {
       throw new Error(`Invalid binding type: ${binding.type}`)
     }
     
-    if (binding.type === 'text' && binding.target !== 'data-zen-text') {
-      throw new Error(`Text binding must have target 'data-zen-text', got: ${binding.target}`)
-    }
-    
-    if (binding.type === 'attribute' && !binding.target.startsWith('data-zen-attr-')) {
-      // This is handled in transformNode, but validate here too
-      // Actually, the target should be the attribute name (e.g., "class")
-      // and we prepend "data-zen-attr-" when generating HTML
-      // So this validation is correct
+    // Validate specific binding types
+    switch (binding.type) {
+      case 'text':
+        if (binding.target !== 'data-zen-text') {
+          throw new Error(`Text binding must have target 'data-zen-text', got: ${binding.target}`)
+        }
+        break
+      case 'loop':
+        if (binding.target !== 'data-zen-loop') {
+          throw new Error(`Loop binding must have target 'data-zen-loop', got: ${binding.target}`)
+        }
+        break
+      case 'conditional':
+        if (binding.target !== 'data-zen-cond') {
+          throw new Error(`Conditional binding must have target 'data-zen-cond', got: ${binding.target}`)
+        }
+        break
+      case 'optional':
+        if (binding.target !== 'data-zen-opt') {
+          throw new Error(`Optional binding must have target 'data-zen-opt', got: ${binding.target}`)
+        }
+        break
+      case 'attribute':
+        // Attribute bindings can have various targets
+        break
     }
   }
 }

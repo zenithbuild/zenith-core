@@ -1,14 +1,33 @@
 /**
  * Component Discovery
  * 
- * Discovers and catalogs components in a Zenith project
- * Similar to layout discovery but for reusable components
+ * Discovers and catalogs components in a Zenith project.
+ * Components are auto-imported based on filename:
+ * 
+ * Auto-Import Rules:
+ *   - Component name = filename (without .zen extension)
+ *   - Subdirectories are for organization, not namespacing
+ *   - Name collisions produce compile-time errors with clear messages
+ * 
+ * Examples:
+ *   components/Header.zen → <Header />
+ *   components/sections/HeroSection.zen → <HeroSection />
+ *   components/ui/buttons/Primary.zen → <Primary />
+ * 
+ * If you have name collisions (same filename in different directories),
+ * you must rename one of the components.
+ * 
+ * Requirements:
+ *   - Auto-import resolution is deterministic and compile-time only
+ *   - Name collisions produce compile-time errors with clear messages
+ *   - No runtime component registration or global singleton registries
  */
 
 import * as fs from 'fs'
 import * as path from 'path'
 import { parseZenFile } from '../parse/parseZenFile'
-import type { TemplateNode } from '../ir/types'
+import { CompilerError } from '../errors/compilerError'
+import type { TemplateNode, ExpressionIR } from '../ir/types'
 
 export interface SlotDefinition {
     name: string | null  // null = default slot, string = named slot
@@ -19,10 +38,12 @@ export interface SlotDefinition {
 }
 
 export interface ComponentMetadata {
-    name: string          // Component name (e.g., "Card", "Button")
+    name: string          // Component name (e.g., "Card", "HeroSection")
     path: string          // Absolute path to .zen file
+    relativePath: string  // Relative path from components directory
     template: string      // Raw template HTML
     nodes: TemplateNode[] // Parsed template nodes
+    expressions: ExpressionIR[] // Expressions referenced by nodes
     slots: SlotDefinition[]
     props: string[]       // Declared props
     styles: string[]      // Raw CSS from <style> blocks
@@ -33,12 +54,18 @@ export interface ComponentMetadata {
 }
 
 /**
- * Discover all components in a directory
+ * Discover all components in a directory with auto-import naming
+ * 
+ * Components are named by their filename (without .zen extension).
+ * Subdirectories are for organization only and do not affect the component name.
+ * 
  * @param baseDir - Base directory to search (e.g., src/components)
  * @returns Map of component name to metadata
+ * @throws CompilerError on name collisions
  */
 export function discoverComponents(baseDir: string): Map<string, ComponentMetadata> {
     const components = new Map<string, ComponentMetadata>()
+    const collisions = new Map<string, string[]>() // name → [relative paths]
 
     // Check if components directory exists
     if (!fs.existsSync(baseDir)) {
@@ -50,13 +77,41 @@ export function discoverComponents(baseDir: string): Map<string, ComponentMetada
 
     for (const filePath of zenFiles) {
         try {
-            const metadata = parseComponentFile(filePath)
+            const metadata = parseComponentFile(filePath, baseDir)
             if (metadata) {
-                components.set(metadata.name, metadata)
+                // Check for collision
+                if (components.has(metadata.name)) {
+                    const existing = components.get(metadata.name)!
+                    if (!collisions.has(metadata.name)) {
+                        collisions.set(metadata.name, [existing.relativePath])
+                    }
+                    collisions.get(metadata.name)!.push(metadata.relativePath)
+                } else {
+                    components.set(metadata.name, metadata)
+                }
             }
         } catch (error: any) {
             console.warn(`[Zenith] Failed to parse component ${filePath}: ${error.message}`)
         }
+    }
+
+    // Report all collisions as a single error
+    if (collisions.size > 0) {
+        const collisionMessages = Array.from(collisions.entries())
+            .map(([name, paths]) => {
+                const pathList = paths.map(p => `  - ${p}`).join('\n')
+                return `Component name "${name}" is used by multiple files:\n${pathList}`
+            })
+            .join('\n\n')
+        
+        throw new CompilerError(
+            `Component name collision detected!\n\n${collisionMessages}\n\n` +
+            `Each component must have a unique filename.\n` +
+            `To fix: Rename one of the conflicting components to have a unique name.`,
+            baseDir,
+            0,
+            0
+        )
     }
 
     return components
@@ -89,13 +144,20 @@ function findZenFiles(dir: string): string[] {
 
 /**
  * Parse a component file and extract metadata
+ * 
+ * Component name is derived from the filename (without .zen extension).
+ * 
+ * @param filePath - Absolute path to the component file
+ * @param baseDir - Base directory for component discovery (used for relative path)
  */
-function parseComponentFile(filePath: string): ComponentMetadata | null {
+function parseComponentFile(filePath: string, baseDir: string): ComponentMetadata | null {
     const ir = parseZenFile(filePath)
 
-    // Extract component name from filename
-    const basename = path.basename(filePath, '.zen')
-    const componentName = basename
+    // Component name is just the filename (without .zen extension)
+    const componentName = path.basename(filePath, '.zen')
+    
+    // Relative path for error messages and debugging
+    const relativePath = path.relative(baseDir, filePath)
 
     // Extract slots from template
     const slots = extractSlots(ir.template.nodes)
@@ -109,8 +171,10 @@ function parseComponentFile(filePath: string): ComponentMetadata | null {
     return {
         name: componentName,
         path: filePath,
+        relativePath,
         template: ir.template.raw,
         nodes: ir.template.nodes,
+        expressions: ir.template.expressions,  // Store expressions for later merging
         slots,
         props,
         styles,

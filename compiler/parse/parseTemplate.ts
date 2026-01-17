@@ -549,11 +549,40 @@ function parseNode(
 }
 
 /**
+ * Convert self-closing component tags to properly closed tags
+ * 
+ * HTML5/parse5 treats `<ComponentName />` as an opening tag (the `/` is ignored),
+ * which causes following siblings to be incorrectly nested as children.
+ * 
+ * This function converts `<ComponentName />` to `<ComponentName></ComponentName>`
+ * for tags that start with uppercase (Zenith components).
+ * 
+ * Example:
+ *   Input:  `<Header /><Hero /><Footer />`
+ *   Output: `<Header></Header><Hero></Hero><Footer></Footer>`
+ */
+function convertSelfClosingComponents(html: string): string {
+  // Match self-closing tags that start with uppercase (component tags)
+  // Pattern: <ComponentName ... />
+  // Captures: ComponentName and any attributes
+  const selfClosingPattern = /<([A-Z][a-zA-Z0-9._-]*)([^>]*?)\/>/g
+  
+  return html.replace(selfClosingPattern, (match, tagName, attributes) => {
+    // Convert to properly closed tag
+    return `<${tagName}${attributes}></${tagName}>`
+  })
+}
+
+/**
  * Parse template from HTML string
  */
 export function parseTemplate(html: string, filePath: string): TemplateIR {
   // Strip script and style blocks
   let templateHtml = stripBlocks(html)
+
+  // Convert self-closing component tags to properly closed tags
+  // This fixes the component stacking bug where siblings become nested children
+  templateHtml = convertSelfClosingComponents(templateHtml)
 
   // Normalize all expressions so parse5 can parse them safely
   const { normalized, expressions: normalizedExprs } = normalizeAllExpressions(templateHtml)
