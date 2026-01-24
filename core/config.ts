@@ -1,1 +1,1 @@
-export * from '@zenith/compiler/config';
+export * from '@zenithbuild/compiler/config';

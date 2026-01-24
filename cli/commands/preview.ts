@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Preview Command
+ * @zenithbuild/cli - Preview Command
  * 
  * Serves the production build from the distribution directory.
  */

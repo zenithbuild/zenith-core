@@ -1,4 +1,4 @@
-# @zenith/core ⚡
+# @zenithbuild/core ⚡
 
 The execution target and orchestrator for the Zenith framework. Contains the minimal reactive runtime and CLI tools.
 
@@ -23,13 +23,13 @@ The command-line interface that orchestrates the system build chain.
 ## Coordinated Architecture
 
 Zenith follows a strict "Compiler-First" philosophy:
-- **@zenith/compiler**: Owns all structures, wiring, and build-time guarantees.
-- **@zenith/core**: Owns the minimal runtime execution needed to run compiled plans.
+- **@zenithbuild/compiler**: Owns all structures, wiring, and build-time guarantees.
+- **@zenithbuild/core**: Owns the minimal runtime execution needed to run compiled plans.
 
 ## Usage
 
 ```typescript
-import { signal, effect, onMount } from '@zenith/core';
+import { signal, effect, onMount } from '@zenithbuild/core';
 
 const count = signal(0);
 onMount(() => console.log('Ready'));

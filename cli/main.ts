@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Shared CLI Execution Logic
+ * @zenithbuild/cli - Shared CLI Execution Logic
  */
 
 import process from 'node:process'

@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Plugin Manager
+ * @zenithbuild/cli - Plugin Manager
  * 
  * Manages zenith.plugins.json for plugin registration
  */

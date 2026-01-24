@@ -21,11 +21,11 @@
             "message": "CLI/Core must not import from plugin packages. Plugins register hooks via bridge API."
           },
           {
-            "group": ["@zenith/content", "@zenith/content/**"],
+            "group": ["@zenithbuild/content", "@zenithbuild/content/**"],
             "message": "CLI/Core must not import content plugin. Content owns its own data."
           },
           {
-            "group": ["@zenith/analytics", "@zenith/analytics/**"],
+            "group": ["@zenithbuild/analytics", "@zenithbuild/analytics/**"],
             "message": "CLI/Core must not import analytics plugin."
           }
         ]

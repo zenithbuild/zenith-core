@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Command Registry
+ * @zenithbuild/cli - Command Registry
  * 
  * Central registry for all CLI commands
  */

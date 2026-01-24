@@ -1,5 +1,5 @@
 {
-  "name": "@zenith/core",
+  "name": "@zenithbuild/core",
   "version": "1.0.1",
   "description": "Core library for the Zenith framework",
   "license": "MIT",
@@ -64,8 +64,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@zenith/compiler": "latest",
-    "@zenith/router": "latest",
-    "picocolors": "latest"
+    "@zenithbuild/compiler": "1.0.1",
+    "@zenithbuild/router": "1.0.1",
+    "picocolors": "^1.1.1"
   }
 }

@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Project Utility
+ * @zenithbuild/cli - Project Utility
  * 
  * Detects Zenith project root and configuration
  */
@@ -28,8 +28,8 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
                 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
                 const deps = { ...pkg.dependencies, ...pkg.devDependencies }
 
-                // Check for any @zenith/* or @zenith/* dependency
-                const hasZenith = Object.keys(deps).some(d => d.startsWith('@zenith/') || d.startsWith('@zenith/'))
+                // Check for any @zenithbuild/* or @zenithbuild/* dependency
+                const hasZenith = Object.keys(deps).some(d => d.startsWith('@zenithbuild/') || d.startsWith('@zenithbuild/'))
                 if (hasZenith) {
                     return current
                 }
@@ -71,7 +71,7 @@ export function getProject(cwd: string = process.cwd()): ZenithProject | null {
 export function requireProject(cwd: string = process.cwd()): ZenithProject {
     const project = getProject(cwd)
     if (!project) {
-        throw new Error('Not in a Zenith project. Run this command from a directory with @zenith/* dependencies.')
+        throw new Error('Not in a Zenith project. Run this command from a directory with @zenithbuild/* dependencies.')
     }
     return project
 }

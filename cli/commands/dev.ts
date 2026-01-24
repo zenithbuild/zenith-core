@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Dev Command
+ * @zenithbuild/cli - Dev Command
  * 
  * Development server with HMR support.
  * 
@@ -41,7 +41,7 @@ import {
     buildRuntimeEnvelope,
     clearHooks,
     type HookContext
-} from '@zenith/compiler'
+} from '@zenithbuild/compiler'
 
 export interface DevOptions {
     port?: number
@@ -61,7 +61,7 @@ const pageCache = new Map<string, CompiledPage>()
  * Bundle page script using Rolldown to resolve npm imports at compile time.
  * Only called when compiler emits a BundlePlan - bundler performs no inference.
  */
-import { bundlePageScript, type BundlePlan, generateRouteDefinition } from '@zenith/compiler'
+import { bundlePageScript, type BundlePlan, generateRouteDefinition } from '@zenithbuild/compiler'
 
 export async function dev(options: DevOptions = {}): Promise<void> {
     const project = requireProject()

@@ -6,7 +6,7 @@
 
 // Export path constants for component resolution
 export const CORE_COMPONENTS = {
-    ErrorPage: '@zenith/core/components/ErrorPage.zen'
+    ErrorPage: '@zenithbuild/core/components/ErrorPage.zen'
 } as const;
 
 // Component path resolver

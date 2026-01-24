@@ -1,7 +1,7 @@
 /**
  * Zenith Router
  * 
- * This module re-exports from @zenith/router package.
+ * This module re-exports from @zenithbuild/router package.
  * 
  * The router has been extracted to its own package for:
  * - Independent versioning
@@ -21,8 +21,8 @@
  * }
  * ```
  * 
- * @deprecated Import directly from '@zenith/router' for new projects
+ * @deprecated Import directly from '@zenithbuild/router' for new projects
  */
 
-// Re-export everything from @zenith/router
-export * from "@zenith/router"
+// Re-export everything from @zenithbuild/router
+export * from "@zenithbuild/router"

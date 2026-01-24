@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Logger Utility
+ * @zenithbuild/cli - Logger Utility
  * 
  * Colored console output for CLI feedback
  */

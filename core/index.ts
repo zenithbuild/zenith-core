@@ -134,12 +134,12 @@ export {
 } from './lifecycle'
 
 // ============================================
-// Build-time Modules (Proxied from @zenith/compiler)
+// Build-time Modules (Proxied from @zenithbuild/compiler)
 // ============================================
 
 export {
   loadZenithConfig
-} from '@zenith/compiler/config'
+} from '@zenithbuild/compiler/config'
 
 export {
   PluginRegistry,
@@ -150,9 +150,9 @@ export {
   collectHookReturns,
   buildRuntimeEnvelope,
   clearHooks
-} from '@zenith/compiler'
+} from '@zenithbuild/compiler'
 
-export type { HookContext } from '@zenith/compiler'
+export type { HookContext } from '@zenithbuild/compiler'
 
 // ============================================
 // Core Components

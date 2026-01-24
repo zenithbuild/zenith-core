@@ -1,12 +1,12 @@
 /**
- * @zenith/cli - Build Command
+ * @zenithbuild/cli - Build Command
  * 
  * Builds the application for production using SSG.
  */
 
 import { requireProject } from '../utils/project'
 import * as logger from '../utils/logger'
-import { buildSSG } from '@zenith/compiler'
+import { buildSSG } from '@zenithbuild/compiler'
 
 export interface BuildOptions {
     outDir?: string

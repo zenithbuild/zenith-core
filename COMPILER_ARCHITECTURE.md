@@ -127,7 +127,7 @@ zenith-core/
 │       └── index.ts          # File writes only (no assembly logic)
 │
 ├── native/                   # AUTHORITATIVE COMPILER
-│   └── @zenith/compiler-native
+│   └── @zenithbuild/compiler-native
 │       ├── src/
 │       │   ├── parse.rs
 │       │   ├── validate.rs

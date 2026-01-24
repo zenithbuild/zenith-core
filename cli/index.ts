@@ -1,5 +1,5 @@
 /**
- * @zenith/cli
+ * @zenithbuild/cli
  * 
  * CLI for Zenith framework - dev server, build tools, and plugin management
  */

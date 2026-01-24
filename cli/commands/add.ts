@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Add Command
+ * @zenithbuild/cli - Add Command
  * 
  * Registers a plugin in the project
  */
@@ -32,6 +32,6 @@ export async function add(pluginName: string, options: AddOptions = {}): Promise
     if (success) {
         logger.info(`Plugin "${pluginName}" has been registered.`)
         logger.info('Note: You may need to install the package manually:')
-        logger.log(`  bun add @zenith/plugin-${pluginName}`)
+        logger.log(`  bun add @zenithbuild/plugin-${pluginName}`)
     }
 }

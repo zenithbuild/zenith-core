@@ -1,5 +1,5 @@
 /**
- * @zenith/cli - Remove Command
+ * @zenithbuild/cli - Remove Command
  * 
  * Removes a plugin from the project registry
  */
@@ -28,6 +28,6 @@ export async function remove(pluginName: string): Promise<void> {
     if (success) {
         logger.info(`Plugin "${pluginName}" has been unregistered.`)
         logger.info('Note: You may want to remove the package manually:')
-        logger.log(`  bun remove @zenith/plugin-${pluginName}`)
+        logger.log(`  bun remove @zenithbuild/plugin-${pluginName}`)
     }
 }
