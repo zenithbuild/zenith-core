@@ -26,6 +26,7 @@ import * as logger from '../utils/logger'
 import * as brand from '../utils/branding'
 import {
     compileZenSource,
+    discoverComponents,
     discoverLayouts,
     processLayout,
     generateBundleJS,
@@ -90,8 +91,10 @@ export async function dev(options: DevOptions = {}): Promise<void> {
 
         // Let plugin register its CLI hooks (if it wants to)
         // CLI does NOT check what the plugin is - it just offers the API
+        console.log('[Zenith] About to call registerCLI for:', plugin.name)
         if (plugin.registerCLI) {
             plugin.registerCLI(bridgeAPI)
+            console.log('[Zenith] registerCLI completed for:', plugin.name)
         }
     }
 
@@ -100,16 +103,20 @@ export async function dev(options: DevOptions = {}): Promise<void> {
     // ============================================
     // Initialize ALL plugins unconditionally.
     // If no plugins, this is a no-op. CLI doesn't branch on plugin presence.
+    console.log('[Zenith] About to call registry.initAll...')
     await registry.initAll(createPluginContext(rootDir))
+    console.log('[Zenith] registry.initAll completed')
 
     // Create hook context - CLI provides this but NEVER uses getPluginData itself
     const hookCtx: HookContext = {
         projectRoot: rootDir,
         getPluginData: getPluginDataByNamespace
     }
+    console.log('[Zenith] hookCtx created, calling runPluginHooks...')
 
     // Dispatch lifecycle hook - plugins decide if they care
     await runPluginHooks('cli:dev:start', hookCtx)
+    console.log('[Zenith] runPluginHooks completed')
 
     // ============================================
     // CSS Compilation (Compiler-Owned)
@@ -150,20 +157,58 @@ export async function dev(options: DevOptions = {}): Promise<void> {
      */
     async function compilePageInMemory(pagePath: string): Promise<CompiledPage | null> {
         try {
-            const layoutsDir = path.join(pagesDir, '../layouts')
             const componentsDir = path.join(pagesDir, '../components')
+            const layoutsDir = path.join(pagesDir, '../layouts')
+
+            // Discover layouts for wrapping logic
             const layouts = discoverLayouts(layoutsDir)
+
+            // Discover components for resolution logic
+            // We need layouts to be available as components too (e.g. <DefaultLayout>)
+            const componentsMap = new Map()
+
+            if (fs.existsSync(componentsDir)) {
+                const comps = discoverComponents(componentsDir)
+                for (const [k, v] of comps) componentsMap.set(k, v)
+            }
+
+            if (fs.existsSync(layoutsDir)) {
+                const layoutComps = discoverComponents(layoutsDir)
+                for (const [k, v] of layoutComps) {
+                    // Start with uppercase = component
+                    if (k[0] === k[0]?.toUpperCase()) {
+                        componentsMap.set(k, v)
+                    }
+                }
+            }
+
             const source = fs.readFileSync(pagePath, 'utf-8')
-
             let processedSource = source
-            let layoutToUse = layouts.get('DefaultLayout')
 
-            if (layoutToUse) processedSource = processLayout(source, layoutToUse)
+            // Legacy layout wrapping (implicit)
+            // If the page doesn't explicitly use the layout, we might wrap it?
+            // But if users use <DefaultLayout>, that's handled by component resolution.
+
+            let layoutToUse = layouts.get('DefaultLayout')
+            if (layoutToUse && !source.includes('<DefaultLayout')) {
+                // only wrap if not already used? 
+                // actually processLayout is usually for "implicit" layout application
+                // If the user manually wraps, processLayout might double wrap?
+                // Let's assume processLayout logic is correct for now or minimal.
+                // processLayout(source, layoutToUse) checks if it should wrap.
+                processedSource = processLayout(source, layoutToUse)
+            } else if (layoutToUse) {
+                // If it IS used explicitly, we treat it as a component.
+                // We don't wrap it.
+            }
 
             const result = await compileZenSource(processedSource, pagePath, {
-                componentsDir: fs.existsSync(componentsDir) ? componentsDir : undefined
+                components: componentsMap
             })
             if (!result.finalized) throw new Error('Compilation failed')
+
+            console.log('[Dev] Finalized JS Length:', result.finalized.js.length)
+            console.log('[Dev] Finalized JS Preview:', result.finalized.js.substring(0, 500))
 
             const routeDef = generateRouteDefinition(pagePath, pagesDir)
 
@@ -251,21 +296,26 @@ export async function dev(options: DevOptions = {}): Promise<void> {
      * It serializes blindly - never inspecting what's inside.
      */
     async function generateDevHTML(page: CompiledPage): Promise<string> {
-        // Single neutral injection point
+        // Runtime MUST be a regular script (not module) to execute synchronously
+        // before the page module script runs and needs its globals
         const runtimeTag = `<script src="/runtime.js"></script>`
         const scriptTag = `<script type="module">\n${page.script}\n</script>`
         const allScripts = `${runtimeTag}\n${scriptTag}`
 
-        let html = page.html.includes('</body>')
-            ? page.html.replace('</body>', `${allScripts}\n</body>`)
-            : `${page.html}\n${allScripts}`
-
-        // Ensure DOCTYPE is present to prevent Quirks Mode (critical for SVG namespace)
-        if (!html.trimStart().toLowerCase().startsWith('<!doctype')) {
-            html = `<!DOCTYPE html>\n${html}`
+        let html = page.html;
+        if (html.includes('</head>')) {
+            html = html.replace('</head>', `${allScripts}\n</head>`);
+        } else if (html.includes('</body>')) {
+            html = html.replace('</body>', `${allScripts}\n</body>`);
+        } else {
+            html = `${html}\n${allScripts}`;
         }
 
-        return html
+        if (!html.trimStart().toLowerCase().startsWith('<!doctype')) {
+            html = `<!DOCTYPE html>\n<html lang="en">\n${html}\n</html>`;
+        }
+
+        return html;
     }
 
     // ============================================
@@ -405,7 +455,7 @@ export async function dev(options: DevOptions = {}): Promise<void> {
                     const renderTime = Math.round(renderEnd - renderStart)
 
                     logger.route('GET', pathname, 200, totalTime, compileTime, renderTime)
-                    return new Response(html, { headers: { 'Content-Type': 'text/html' } })
+                    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
                 }
             }
 

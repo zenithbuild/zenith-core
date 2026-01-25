@@ -5,17 +5,17 @@
     "": {
       "name": "@zenithbuild/core",
       "dependencies": {
-        "@zenithbuild/compiler": "latest",
-        "@zenithbuild/router": "latest",
+        "@zenithbuild/compiler": "^1.0.11",
+        "@zenithbuild/router": "^1.0.3",
         "picocolors": "^1.1.1",
       },
       "devDependencies": {
-        "@types/bun": "latest",
-        "@types/node": "latest",
-        "prettier": "^3.7.4",
+        "@types/bun": "^1.3.6",
+        "@types/node": "^25.0.10",
+        "prettier": "^3.8.1",
       },
       "peerDependencies": {
-        "typescript": "^5",
+        "typescript": "^5.9.3",
       },
     },
   },
@@ -114,9 +114,9 @@
 
     "@types/node": ["@types/node@25.0.10", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-zWW5KPngR/yvakJgGOmZ5vTBemDoSqF3AcV/LrO5u5wTWyEAVVh+IT39G4gtyAkh3CtTZs8aX/yRM82OfzHJRg=="],
 
-    "@zenithbuild/compiler": ["@zenithbuild/compiler@1.0.3", "", { "dependencies": { "@zenithbuild/router": "latest", "acorn": "^8.15.0", "es-module-lexer": "^2.0.0", "esbuild": "^0.20.0", "glob": "^10.3.10", "marked": "^17.0.1", "parse5": "^8.0.0", "picocolors": "^1.1.1", "prompts": "^2.4.2", "rolldown": "latest", "ws": "^8.16.0" } }, "sha512-aovSIJCFWSlGPl98OeWYrRY4TSbNXDk73emUWwpD61wCSPLjDSvzzrWT9dPpVftUceSC3xInXR3cn615IjMNbQ=="],
+    "@zenithbuild/compiler": ["@zenithbuild/compiler@1.0.11", "", { "dependencies": { "@zenithbuild/router": "latest", "acorn": "^8.15.0", "es-module-lexer": "^2.0.0", "esbuild": "^0.20.0", "glob": "^10.3.10", "marked": "^17.0.1", "parse5": "^8.0.0", "picocolors": "^1.1.1", "prompts": "^2.4.2", "rolldown": "latest", "ws": "^8.16.0" } }, "sha512-Gciy9EHGSIs+t1jHAtO76aJLIT3Ec1JiHyajdObYP0w3KRiYhZb1DHTgDJn1hHa1MZN3e1xJUlavaxkhDHAChw=="],
 
-    "@zenithbuild/router": ["@zenithbuild/router@1.0.1", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-D8y7xWagFQ3TBNMLqAhsyRY9x6YybmvyxwkiaHpZjSRov+klAHkELIqaZg7RryHxlmO7Znr5lCPGTaqd206ftQ=="],
+    "@zenithbuild/router": ["@zenithbuild/router@1.0.3", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-pzMZJRQD4kqDuXHKIV4Ttri9BkJlgsGd5A2FdaZEFhNfiHHoB0mPSl24Hz1ktyoXiT2GOMinFOyR/D49OMlT7Q=="],
 
     "acorn": ["acorn@8.15.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=="],
 
