@@ -64,8 +64,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@zenithbuild/compiler": "file:../zenith-compiler",
-    "@zenithbuild/router": "^1.0.4",
+    "@zenithbuild/compiler": "^1.0.15",
+    "@zenithbuild/router": "^1.0.7",
     "picocolors": "^1.1.1"
   }
 }
